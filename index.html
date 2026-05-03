@@ -264,11 +264,14 @@
         }
         
         async function checkAdminStatus() {
-            const { data, error } = await supabaseClient.from('user_roles').select('is_admin').eq('user_id', currentUser.id).single();
-            isAdmin = data?.is_admin === true;
-            return isAdmin;
-        }
-        
+    const { data, error } = await supabaseClient
+        .from('user_roles')
+        .select('is_admin')
+        .eq('user_id', currentUser.id)
+        .single();
+    isAdmin = data?.is_admin === true;
+    return isAdmin;
+}  
         async function loadCourses() {
             const { data } = await supabaseClient.from('courses').select('*').order('id');
             if (data && data.length > 0) {
