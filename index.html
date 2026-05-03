@@ -312,22 +312,26 @@
         }
         
         async function checkAdminStatus() {
-            // First check from user_roles table
-            const { data, error } = await supabaseClient.from('user_roles').select('is_admin').eq('user_id', currentUser.id).single();
-            if (data && data.is_admin === true) {
-                isAdmin = true;
-                console.log("Admin status: TRUE (from user_roles)");
-                return true;
-            }
-            // Fallback: check email if contains admin (for backward compatibility)
-            if (currentUser?.email && (currentUser.email === "admin@alfaruq.com" || currentUser.email.includes("admin"))) {
-                isAdmin = true;
-                console.log("Admin status: TRUE (from email)");
-                return true;
-            }
-            isAdmin = false;
-            console.log("Admin status: FALSE");
-            return false;
+    try {
+        const { data, error } = await supabaseClient
+            .from('user_roles')
+            .select('is_admin')
+            .eq('user_id', currentUser.id)
+            .single();
+        
+        if (data && data.is_admin === true) {
+            isAdmin = true;
+            console.log("✅ Admin confirmed:", currentUser.email);
+            return true;
+        }
+    } catch (err) {
+        console.error("Error checking admin:", err.message);
+    }
+    
+    isAdmin = false;
+    console.log("❌ Not admin:", currentUser?.email);
+    return false;
+}
         }
         
         async function loadCourses() {
