@@ -7,7 +7,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
@@ -69,17 +68,18 @@
         .benefit-list { text-align: left; font-size: 0.9rem; list-style: none; margin-top: 10px; }
         .benefit-list li { padding: 5px 0; }
 
-        .course-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
-        .course-card { background: var(--bg-card); border-radius: 24px; padding: 20px; text-align: center; cursor: pointer; transition: 0.2s; position: relative; }
+        .course-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; margin-top: 20px; }
+        .course-card { background: var(--bg-card); border-radius: 24px; padding: 20px; text-align: center; transition: 0.2s; position: relative; }
         .course-card:hover { transform: translateY(-5px); box-shadow: 0 15px 30px rgba(0,0,0,0.2); }
-        .course-card.disabled { opacity: 0.5; filter: grayscale(0.3); pointer-events: none; }
+        .course-card.disabled { opacity: 0.6; background: #f0f0f0; }
         .course-icon { font-size: 2.5rem; margin-bottom: 10px; }
         .course-title { font-size: 1.2rem; font-weight: bold; margin: 10px 0; }
         .lock-badge { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.7); color: white; padding: 5px 10px; border-radius: 20px; font-size: 0.7rem; }
+        .course-price { font-size: 1.2rem; font-weight: bold; color: var(--secondary-dark); margin: 10px 0; }
 
-        .commission-table, .mufradat-table, .financial-table { width: 100%; border-collapse: collapse; margin: 15px 0; }
-        .commission-table th, .commission-table td, .mufradat-table th, .mufradat-table td, .financial-table th, .financial-table td { border: 1px solid var(--border-color); padding: 10px; text-align: center; }
-        .commission-table th, .mufradat-table th, .financial-table th { background: var(--primary); color: white; }
+        .commission-table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+        .commission-table th, .commission-table td { border: 1px solid var(--border-color); padding: 10px; text-align: center; }
+        .commission-table th { background: var(--primary); color: white; }
 
         .price-card { background: #f8f9fa; border-radius: 20px; padding: 20px; text-align: center; }
         .price-old { text-decoration: line-through; color: #999; font-size: 0.9rem; }
@@ -106,7 +106,7 @@
         .progress-bar { background: #e0e0e0; border-radius: 20px; height: 10px; margin: 10px 0; overflow: hidden; }
         .progress-fill { background: #27ae60; height: 100%; width: 0%; border-radius: 20px; }
 
-        .lesson-list { display: flex; flex-direction: column; gap: 8px; }
+        .lesson-list { display: flex; flex-direction: column; gap: 8px; margin-top: 15px; }
         .lesson-item { background: var(--bg-lesson); border-radius: 16px; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
         .lesson-item:hover { background: var(--bg-lesson-hover); }
         .lesson-item.completed { background: var(--bg-completed); border-left: 4px solid #27ae60; }
@@ -119,7 +119,6 @@
         .modal-close { position: absolute; top: 15px; right: 20px; font-size: 1.5rem; cursor: pointer; }
 
         .admin-menu { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-bottom: 20px; }
-        .status-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: bold; }
         .badge { display: inline-block; padding: 4px 12px; border-radius: 50px; font-size: 0.7rem; font-weight: bold; margin: 2px; }
         .badge-gold { background: #f1c40f; color: #333; }
         .badge-blue { background: #3498db; color: white; }
@@ -127,25 +126,22 @@
         .admin-corner-btn { position: fixed; top: 20px; right: 20px; z-index: 1000; background: #2c3e50; color: white; border: none; padding: 10px 20px; border-radius: 40px; cursor: pointer; font-weight: bold; box-shadow: 0 2px 10px rgba(0,0,0,0.3); }
         .dark-mode-toggle { position: fixed; top: 20px; left: 20px; z-index: 1000; background: #2c3e50; color: white; border: none; padding: 10px 16px; border-radius: 40px; cursor: pointer; font-weight: bold; box-shadow: 0 2px 10px rgba(0,0,0,0.3); }
 
-        button.disabled, .disabled { opacity: 0.5; cursor: not-allowed; pointer-events: none; }
-
         .certificate-container { border: 2px solid #f4a261; border-radius: 20px; padding: 30px; background: white; max-width: 800px; margin: 0 auto; text-align: center; }
         .certificate-title { font-size: 2rem; color: #1e6b3b; letter-spacing: 4px; margin-bottom: 20px; }
-        .certificate-subtitle { font-size: 1.2rem; margin-bottom: 30px; }
         .certificate-name { font-size: 2rem; font-weight: bold; margin: 20px 0; font-family: 'Times New Roman', serif; color: #2c3e50; }
         .certificate-course { font-size: 1.5rem; font-weight: bold; margin: 20px 0; color: #e67e22; }
-        .certificate-footer { margin-top: 30px; font-size: 0.8rem; }
 
-        .group-card { background: linear-gradient(135deg, #0088cc, #006699); color: white; border-radius: 20px; padding: 20px; margin-bottom: 20px; text-align: center; }
+        .group-card { background: linear-gradient(135deg, #0088cc, #006699); color: white; border-radius: 20px; padding: 20px; margin-top: 20px; text-align: center; }
         .group-card a { color: white; background: rgba(255,255,255,0.2); padding: 8px 20px; border-radius: 40px; text-decoration: none; display: inline-block; margin-top: 10px; }
-        .group-card a:hover { background: rgba(255,255,255,0.3); }
+
+        .btn-group { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 10px; }
 
         @media (max-width: 768px) {
             .benefit-grid { grid-template-columns: 1fr; }
             .admin-corner-btn, .dark-mode-toggle { padding: 6px 12px; font-size: 0.8rem; top: 10px; }
             .admin-corner-btn { right: 10px; }
             .dark-mode-toggle { left: 10px; }
-            .certificate-container { padding: 15px; }
+            .course-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -154,7 +150,6 @@
 
     <script>
         // ======================== KONFIGURASI SUPABASE ========================
-        // *** GANTI DENGAN URL DAN ANON KEY DARI PROYEK SUPABASE BARU ANDA ***
         const SUPABASE_URL = "https://yfrpaacvuvgtqbsuihoa.supabase.co";
         const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlmcnBhYWN2dXZndHFic3VpaG9hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc3NzI2OTcsImV4cCI6MjA5MzM0ODY5N30.kKhxyE03vIflYRp3MKjOP1Sd_3V81uk05tv5BQ_Ck68";
         
@@ -173,14 +168,12 @@
         let practicalScores = [];
         let settings = {
             defaultWhatsappNumber: "6281359659947",
-            defaultWhatsappMessage: "Hallo, saya ingin bertanya tentang kursus {course_title}",
-            webhookUrl: "",
+            defaultWhatsappMessage: "Hallo, saya ingin bertanya tentang kursus",
             earlyBirdEnabled: true,
             earlyBirdDiscount: 20,
             earlyBirdEndDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
             taxType: "pp23",
-            taxRate: 0.5,
-            adminPassword: "admin123"
+            taxRate: 0.5
         };
         
         // ======================== HELPER FUNCTIONS ========================
@@ -209,7 +202,7 @@
             return "https://via.placeholder.com/150?text=Bukti+Bayar";
         }
         
-        // ======================== SUPABASE INIT & DATA LOADING ========================
+        // ======================== SUPABASE INIT ========================
         async function initSupabase() {
             try {
                 if (typeof supabase === 'undefined') { 
@@ -238,15 +231,11 @@
         async function loadAppSettings() {
             const { data } = await supabaseClient.from('app_settings').select('key, value');
             if (data) {
-                appSettings = {};
-                data.forEach(s => { appSettings[s.key] = s.value; });
-                if (appSettings.default_whatsapp_number) settings.defaultWhatsappNumber = appSettings.default_whatsapp_number;
-                if (appSettings.default_whatsapp_message) settings.defaultWhatsappMessage = appSettings.default_whatsapp_message;
-                if (appSettings.early_bird_enabled) settings.earlyBirdEnabled = appSettings.early_bird_enabled === 'true';
-                if (appSettings.early_bird_discount) settings.earlyBirdDiscount = parseInt(appSettings.early_bird_discount);
-                if (appSettings.early_bird_end_date) settings.earlyBirdEndDate = appSettings.early_bird_end_date;
-                if (appSettings.tax_type) settings.taxType = appSettings.tax_type;
-                if (appSettings.tax_rate) settings.taxRate = parseFloat(appSettings.tax_rate);
+                data.forEach(s => {
+                    if (s.key === 'early_bird_enabled') settings.earlyBirdEnabled = s.value === 'true';
+                    if (s.key === 'early_bird_discount') settings.earlyBirdDiscount = parseInt(s.value);
+                    if (s.key === 'early_bird_end_date') settings.earlyBirdEndDate = s.value;
+                });
             }
         }
         
@@ -262,7 +251,6 @@
                 currentUser.status = data.status;
                 currentUser.selectedCourse = data.selected_course;
                 currentUser.isBundle = data.is_bundle || false;
-                currentUser.pricePaid = data.price_paid || 0;
                 currentUser.purchasedCourses = data.purchased_courses || [];
                 currentUser.completedLessons = {};
                 await loadUserProgress();
@@ -275,11 +263,7 @@
         }
         
         async function checkAdminStatus() {
-            const { data, error } = await supabaseClient
-                .from('user_roles')
-                .select('is_admin')
-                .eq('user_id', currentUser.id)
-                .single();
+            const { data } = await supabaseClient.from('user_roles').select('is_admin').eq('user_id', currentUser.id).single();
             isAdmin = data?.is_admin === true;
             return isAdmin;
         }
@@ -287,13 +271,13 @@
         async function loadCourses() {
             const { data } = await supabaseClient.from('courses').select('*').order('id');
             if (data && data.length > 0) {
-                coursesData = data.map(c => ({ ...c, lessons: c.lessons || [], price: c.price || 200000, desc: c.description, telegram_link: c.telegram_link || '', telegram_group: c.telegram_group || '' }));
+                coursesData = data.map(c => ({ ...c, lessons: c.lessons || [], price: c.price || 200000, desc: c.description, telegram_group: c.telegram_group || '' }));
             } else {
                 const defaultCourses = [
-                    { id: 1, title: "📖 Baca Al-Qur'an", icon: "📖", description: "Metode tahsin sederhana, praktik dari juz 30", price: 200000, telegram_group: "https://t.me/alfaruq_quran_group", telegram_link: "https://t.me/alfaruq_quran", lessons: [] },
-                    { id: 2, title: "📚 Baca Kitab Gundul", icon: "📚", description: "Kenali huruf hijaiyah, pola nahwu-sharaf dasar", price: 200000, telegram_group: "https://t.me/alfaruq_kitab_group", telegram_link: "https://t.me/alfaruq_kitab", lessons: [] },
-                    { id: 3, title: "🕋 Bahasa Arab Umroh", icon: "🕋", description: "300+ kosakata, simulasi dialog", price: 200000, telegram_group: "https://t.me/alfaruq_arab_group", telegram_link: "https://t.me/alfaruq_arab", lessons: [] },
-                    { id: 4, title: "🕌 Shalat Khusyu'", icon: "🕌", description: "Makna bacaan shalat, tips khusyu' terbukti", price: 200000, telegram_group: "https://t.me/alfaruq_shalat_group", telegram_link: "https://t.me/alfaruq_shalat", lessons: [] }
+                    { id: 1, title: "Baca Al-Qur'an", icon: "📖", description: "Metode tahsin sederhana, praktik dari juz 30", price: 200000, telegram_group: "", lessons: [] },
+                    { id: 2, title: "Baca Kitab Gundul", icon: "📚", description: "Kenali huruf hijaiyah, pola nahwu-sharaf dasar", price: 200000, telegram_group: "", lessons: [] },
+                    { id: 3, title: "Bahasa Arab Umroh", icon: "🕋", description: "300+ kosakata, simulasi dialog", price: 200000, telegram_group: "", lessons: [] },
+                    { id: 4, title: "Shalat Khusyu'", icon: "🕌", description: "Makna bacaan shalat, tips khusyu' terbukti", price: 200000, telegram_group: "", lessons: [] }
                 ];
                 for (const c of defaultCourses) {
                     await supabaseClient.from('courses').upsert(c);
@@ -306,7 +290,7 @@
         async function saveCourse(course) {
             await supabaseClient.from('courses').upsert({
                 id: course.id, title: course.title, description: course.desc, icon: course.icon,
-                price: course.price, lessons: course.lessons, telegram_link: course.telegramLink, telegram_group: course.telegramGroup
+                price: course.price, lessons: course.lessons, telegram_group: course.telegramGroup
             });
             await loadCourses();
         }
@@ -321,49 +305,30 @@
         
         async function purchaseCourseWithWallet(courseId, price) {
             if (currentUser.commission < price) {
-                alert(`❌ Saldo tidak cukup! Saldo Anda: ${formatRupiah(currentUser.commission)}`);
+                alert(`Saldo tidak cukup! Saldo Anda: ${formatRupiah(currentUser.commission)}`);
                 return false;
             }
             
-            if (isCourseAccessible(courseId)) {
-                alert("✅ Anda sudah memiliki akses ke kursus ini!");
-                return false;
-            }
-            
-            const confirmBuy = confirm(`Beli ${coursesData.find(c => c.id === courseId)?.title} seharga ${formatRupiah(price)}?`);
+            const course = coursesData.find(c => c.id === courseId);
+            const confirmBuy = confirm(`Beli ${course?.title} seharga ${formatRupiah(price)}?`);
             if (!confirmBuy) return false;
             
-            // Kurangi saldo
             const newBalance = currentUser.commission - price;
             await supabaseClient.from('profiles').update({ 
                 commission: newBalance,
                 purchased_courses: [...(currentUser.purchasedCourses || []), courseId]
             }).eq('user_id', currentUser.id);
             
-            // Catat transaksi
-            await supabaseClient.from('transactions').insert({
-                user_id: currentUser.id,
-                type: 'purchase',
-                amount: price,
-                description: `Pembelian kursus: ${coursesData.find(c => c.id === courseId)?.title}`,
-                status: 'completed'
-            });
-            
             currentUser.commission = newBalance;
             currentUser.purchasedCourses = [...(currentUser.purchasedCourses || []), courseId];
             
-            alert(`✅ Berhasil membeli kursus! Saldo Anda sekarang: ${formatRupiah(newBalance)}`);
+            alert(`Berhasil membeli kursus! Saldo Anda sekarang: ${formatRupiah(newBalance)}`);
             return true;
         }
         
         async function loadPromoData() {
-            const { data } = await supabaseClient.from('promo_codes').select('*').order('id');
+            const { data } = await supabaseClient.from('promo_codes').select('*');
             promoData = data || [];
-        }
-        
-        async function savePromoCode(promo) {
-            await supabaseClient.from('promo_codes').upsert(promo);
-            await loadPromoData();
         }
         
         async function deletePromoCode(id) {
@@ -377,129 +342,89 @@
         }
         
         async function approveWithdraw(id) {
-            await supabaseClient.from('withdraw_requests').update({ status: 'approved', processed_date: new Date().toISOString() }).eq('id', id);
+            await supabaseClient.from('withdraw_requests').update({ status: 'approved' }).eq('id', id);
             await loadWithdrawRequests();
         }
         
         async function rejectWithdraw(id) {
-            await supabaseClient.from('withdraw_requests').update({ status: 'rejected', processed_date: new Date().toISOString() }).eq('id', id);
+            await supabaseClient.from('withdraw_requests').update({ status: 'rejected' }).eq('id', id);
             await loadWithdrawRequests();
         }
         
         async function loadPracticalScores() {
-            const { data } = await supabaseClient.from('practical_scores').select('*, profiles(full_name)').order('evaluated_at', { ascending: false });
+            const { data } = await supabaseClient.from('practical_scores').select('*, profiles(full_name)');
             practicalScores = data || [];
-        }
-        
-        async function savePracticalScore(userId, courseId, lessonId, score, notes) {
-            await supabaseClient.from('practical_scores').insert({ user_id: userId, course_id: courseId, lesson_id: lessonId, score, notes, evaluated_by: currentUser.id });
-            await loadPracticalScores();
         }
         
         function getQuizScore(userId, courseId, lessonId) {
             return localStorage.getItem(`quiz_${userId}_${courseId}_${lessonId}`);
         }
         
-        function getAverageScore(userId, courseId) {
-            const course = coursesData.find(c => c.id === courseId);
-            if (!course) return 0;
-            let total = 0, count = 0;
-            for (let i = 0; i < (course.lessons || []).length; i++) {
-                const quizScore = getQuizScore(userId, courseId, i);
-                if (quizScore) { total += parseInt(quizScore); count++; }
-            }
-            return count > 0 ? Math.round(total / count * 10) : 0;
-        }
-        
-        // ======================== AKUNTANSI & PAJAK ========================
-        async function getFinancialData() {
-            const { data: approvedUsers } = await supabaseClient.from('profiles').select('*').eq('status', 'approved');
-            const totalRevenue = (approvedUsers || []).reduce((sum, u) => sum + (u.price_paid || 0), 0);
-            const { data: approvedWithdraws } = await supabaseClient.from('withdraw_requests').select('*').eq('status', 'approved');
-            const totalCommission = (approvedWithdraws || []).reduce((sum, w) => sum + (w.amount || 0), 0);
-            const { data: topups } = await supabaseClient.from('transactions').select('*').eq('type', 'topup');
-            const totalTopups = (topups || []).reduce((sum, t) => sum + (t.amount || 0), 0);
-            const netProfit = totalRevenue + totalTopups - totalCommission;
-            const taxAmount = netProfit * (settings.taxRate / 100);
-            return { totalRevenue, totalTopups, totalCommission, netProfit, taxAmount };
-        }
-        
-        async function renderFinancialReport() {
-            const { totalRevenue, totalTopups, totalCommission, netProfit, taxAmount } = await getFinancialData();
-            let html = `<div class="card"><h2>📊 Laporan Keuangan & Pajak</h2>
-            <div style="background:#e8f4f8; padding:15px; border-radius:20px; margin-bottom:20px;">
-                <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:15px;">
-                    <div><strong>💰 Total Pendapatan Kursus</strong><br><span style="font-size:1.5rem;">${formatRupiah(totalRevenue)}</span></div>
-                    <div><strong>💳 Top Up Wallet</strong><br><span style="font-size:1.5rem;">${formatRupiah(totalTopups)}</span></div>
-                    <div><strong>📤 Komisi Dibayar</strong><br><span style="font-size:1.5rem; color:#e74c3c;">${formatRupiah(totalCommission)}</span></div>
-                </div>
-                <hr style="margin:15px 0;">
-                <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:15px;">
-                    <div><strong>🏦 Laba Bersih (sebelum pajak)</strong><br><span style="font-size:1.5rem;">${formatRupiah(netProfit)}</span></div>
-                    <div><strong>📋 Estimasi Pajak (${settings.taxRate}%)</strong><br><span style="font-size:1.5rem;">${formatRupiah(taxAmount)}</span></div>
-                    <div><strong>✅ Laba Setelah Pajak</strong><br><span style="font-size:1.5rem;">${formatRupiah(netProfit - taxAmount)}</span></div>
-                </div>
-            </div>
-            <div class="admin-menu"><button id="taxSettingBtn" class="btn-edit">⚙️ Pengaturan Pajak</button><button id="exportFinancialBtn" class="btn-edit">📥 Export CSV</button></div>
-            <button id="backBtn" class="btn-back">Kembali ke Admin</button></div>`;
-            document.getElementById("adminContent").innerHTML = html;
-            document.getElementById("backBtn").onclick = () => renderAdminDashboard();
-            document.getElementById("taxSettingBtn").onclick = () => renderTaxSettings();
-            document.getElementById("exportFinancialBtn").onclick = () => exportFinancialCSV();
-        }
-        
-        function exportFinancialCSV() {
-            getFinancialData().then(async ({ totalRevenue, totalTopups, totalCommission, netProfit, taxAmount }) => {
-                let csvRows = [["Laporan Keuangan ALFARUQ ONLINE COURSE"], ["Periode", new Date().toLocaleDateString('id-ID')], ["", ""],
-                    ["Pendapatan", ""], ["Total Penjualan Kursus", totalRevenue], ["Top Up Wallet", totalTopups], ["Total Pendapatan", totalRevenue + totalTopups],
-                    ["", ""], ["Biaya", ""], ["Komisi Dibayar", totalCommission], ["", ""], ["Laba Bersih Sebelum Pajak", netProfit],
-                    ["Estimasi Pajak (" + settings.taxRate + "%)", taxAmount], ["Laba Bersih Setelah Pajak", netProfit - taxAmount]];
-                let csvContent = csvRows.map(row => row.join(",")).join("\n");
-                let blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv" });
-                let a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `laporan_keuangan_${new Date().toISOString().slice(0,10)}.csv`; a.click(); URL.revokeObjectURL(a.href);
-                alert("✅ Laporan keuangan berhasil diexport!");
-            });
-        }
-        
-        function renderTaxSettings() {
-            let html = `<div class="card"><h2>⚙️ Pengaturan Perhitungan Pajak</h2>
-            <form id="taxForm"><div class="form-group"><label>Jenis Pajak</label>
-                <select id="taxType"><option value="pp23" ${settings.taxType === 'pp23' ? 'selected' : ''}>PPh Final 0.5% (UMKM - PP 23/2018)</option>
-                <option value="pph21" ${settings.taxType === 'pph21' ? 'selected' : ''}>PPh 21 5% (Karyawan/Creator)</option>
-                <option value="pph23" ${settings.taxType === 'pph23' ? 'selected' : ''}>PPh 23 2% (Badan Usaha)</option></select></div>
-                <div class="form-group"><label>Tarif Pajak (%)</label><input type="number" id="taxRate" step="0.1" value="${settings.taxRate}"></div>
-                <button type="submit" class="btn-success">💾 Simpan</button><button type="button" id="backBtn" class="btn-back">Kembali</button></form></div>`;
-            document.getElementById("adminContent").innerHTML = html;
-            document.getElementById("backBtn").onclick = () => renderFinancialReport();
-            document.getElementById("taxForm").onsubmit = async (e) => {
-                e.preventDefault();
-                settings.taxType = document.getElementById("taxType").value;
-                settings.taxRate = parseFloat(document.getElementById("taxRate").value);
-                await supabaseClient.from('app_settings').upsert({ key: 'tax_type', value: settings.taxType });
-                await supabaseClient.from('app_settings').upsert({ key: 'tax_rate', value: String(settings.taxRate) });
-                alert("✅ Pengaturan pajak disimpan!");
-                renderFinancialReport();
-            };
-        }
-        
         // ======================== RENDER LANDING PAGE ========================
         function renderLandingPage() {
             let html = `
-            <button class="admin-corner-btn" onclick="window.location.hash='#admin'">🔧 Admin</button>
-            <button class="dark-mode-toggle" onclick="toggleDarkMode()">🌙 Dark Mode</button>
-            <div class="landing-header"><div class="logo">📖 ALFARUQ ONLINE COURSE</div><div class="tagline">Belajar Islam Dalam Genggaman Dimana Saja</div></div>
-            <div class="card" style="text-align:center;"><h1 style="font-size:1.6rem;">🤲 Bisa Baca Al-Qur'an, Kitab Gundul,<br>Bahasa Arab Umroh, dan Shalat Khusyu'?</h1><h3 style="color:#666;">Tanpa Harus Mondok Bertahun-tahun?</h3><p>🚀 Kini ada <strong>4 kursus online praktis</strong>, cukup <strong>15 menit sehari</strong>.</p><div class="countdown-badge" id="landingCountdown">⏳ Memuat...</div><div><button onclick="window.location.hash='#register'">📚 Daftar Sekarang</button><button class="btn-outline" onclick="window.location.hash='#login'">🔐 Login</button></div></div>
-            <div class="benefit-grid"><div class="benefit-card"><div class="benefit-icon">📖</div><div class="benefit-title">Baca Al-Qur'an</div><ul class="benefit-list"><li>✔️ Metode tahsin sederhana</li><li>✔️ Praktik dari juz 30</li></ul></div><div class="benefit-card"><div class="benefit-icon">📚</div><div class="benefit-title">Baca Kitab Gundul</div><ul class="benefit-list"><li>✔️ Kenali huruf hijaiyah</li><li>✔️ Pola nahwu-sharaf dasar</li></ul></div><div class="benefit-card"><div class="benefit-icon">🕋</div><div class="benefit-title">Bahasa Arab Umroh</div><ul class="benefit-list"><li>✔️ 300+ kosakata</li><li>✔️ Simulasi dialog</li></ul></div><div class="benefit-card"><div class="benefit-icon">🕌</div><div class="benefit-title">Shalat Khusyu'</div><ul class="benefit-list"><li>✔️ Makna bacaan shalat</li><li>✔️ Tips khusyu' terbukti</li></ul></div></div>
-            <div class="card"><h2 style="text-align:center;">💰 Program Reseller</h2><table class="commission-table"><thead>运转<th>Level</th><th>Referral</th><th>Komisi</th></tr></thead><tbody>
-            <tr><td class="badge-gold">📌 BASIC</div><td>0-49</div><td>20%</div></tr>
-            <tr><td class="badge-gold">🥉 BRONZE</div><td>50-99</div><td>25%</div></tr>
-            <tr><td class="badge-gold">🥈 SILVER</div><td>100-499</div><td>30%</div></tr>
-            <tr><td class="badge-gold">🥇 GOLD</div><td>500-999</div><td>35%</div></td>
-            <tr><td class="badge-gold">🏆 PLATINUM</div><td>1000-4999</div><td>40%</div></tr>
-            <tr><td class="badge-gold">💎 DIAMOND</div><td>5000+</div><td>50%</div></tr>
-            </tbody><td><p>💳 Komisi masuk ke Wallet → bisa dicairkan atau dipakai beli pulsa/PLN/kursus lain.</p></div>
-            <div class="card" style="text-align:center;"><h2>🔥 Early Bird ${settings.earlyBirdDiscount}%</h2><div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:20px;"><div class="price-card"><h3>Pilih 1 Kursus</h3><div class="price-old">Rp 200.000</div><div class="price-new">Rp ${getDiscountedPrice(200000).toLocaleString()}</div><button onclick="window.location.hash='#register'">Pilih</button></div><div class="price-card"><h3>🎁 Bundle (Akses Semua Kursus)</h3><div class="price-old">Rp 800.000</div><div class="price-new">Rp ${getDiscountedPrice(800000).toLocaleString()}</div><button onclick="window.location.hash='#register-bundle'">Ambil Bundle</button></div></div></div>
-            <footer style="background:rgba(0,0,0,0.3); border-radius:20px; padding:30px; margin-top:50px; color:white;"><div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:30px;"><div><h4>📖 ALFARUQ</h4><p>Kursus Islam praktis</p></div><div><h4>📱 Kontak</h4><p>📞 <a href="https://wa.me/${settings.defaultWhatsappNumber}" style="color:white;">${settings.defaultWhatsappNumber}</a></p></div><div><h4>⚖️ Legal</h4><p><a href="#" onclick="showModal('disclaimer'); return false;">Disclaimer</a> | <a href="#" onclick="showModal('privacy'); return false;">Privacy</a> | <a href="#" onclick="showModal('terms'); return false;">Syarat</a></p></div><div><h4>&copy; 2025</h4><p>All rights reserved</p></div></div></footer>`;
+            <button class="admin-corner-btn" onclick="window.location.hash='#admin'">Admin</button>
+            <button class="dark-mode-toggle" onclick="toggleDarkMode()">Dark Mode</button>
+            <div class="landing-header">
+                <div class="logo">ALFARUQ ONLINE COURSE</div>
+                <div class="tagline">Belajar Islam Dalam Genggaman Dimana Saja</div>
+            </div>
+            <div class="card" style="text-align:center;">
+                <h1 style="font-size:1.6rem;">Bisa Baca Al-Qur'an, Kitab Gundul,<br>Bahasa Arab Umroh, dan Shalat Khusyu'?</h1>
+                <h3 style="color:#666;">Tanpa Harus Mondok Bertahun-tahun?</h3>
+                <p>Kini ada <strong>4 kursus online praktis</strong>, cukup <strong>15 menit sehari</strong>.</p>
+                <div class="countdown-badge" id="landingCountdown">Memuat...</div>
+                <div>
+                    <button onclick="window.location.hash='#register'">Daftar Sekarang</button>
+                    <button class="btn-outline" onclick="window.location.hash='#login'">Login</button>
+                </div>
+            </div>
+            <div class="benefit-grid">
+                <div class="benefit-card"><div class="benefit-icon">📖</div><div class="benefit-title">Baca Al-Qur'an</div><ul class="benefit-list"><li>Metode tahsin sederhana</li><li>Praktik dari juz 30</li></ul></div>
+                <div class="benefit-card"><div class="benefit-icon">📚</div><div class="benefit-title">Baca Kitab Gundul</div><ul class="benefit-list"><li>Kenali huruf hijaiyah</li><li>Pola nahwu-sharaf dasar</li></ul></div>
+                <div class="benefit-card"><div class="benefit-icon">🕋</div><div class="benefit-title">Bahasa Arab Umroh</div><ul class="benefit-list"><li>300+ kosakata</li><li>Simulasi dialog</li></ul></div>
+                <div class="benefit-card"><div class="benefit-icon">🕌</div><div class="benefit-title">Shalat Khusyu'</div><ul class="benefit-list"><li>Makna bacaan shalat</li><li>Tips khusyu' terbukti</li></ul></div>
+            </div>
+            <div class="card">
+                <h2 style="text-align:center;">Program Reseller</h2>
+                <table class="commission-table">
+                    <thead><tr><th>Level</th><th>Referral</th><th>Komisi</th></tr></thead>
+                    <tbody>
+                        <tr><td>BASIC</td><td>0-49</td><td>20%</td></tr>
+                        <tr><td>BRONZE</td><td>50-99</td><td>25%</td></tr>
+                        <tr><td>SILVER</td><td>100-499</td><td>30%</td></tr>
+                        <tr><td>GOLD</td><td>500-999</td><td>35%</td></tr>
+                        <tr><td>PLATINUM</td><td>1000-4999</td><td>40%</td></tr>
+                        <tr><td>DIAMOND</td><td>5000+</td><td>50%</td></tr>
+                    </tbody>
+                </table>
+                <p>Komisi masuk ke Wallet bisa dicairkan atau dipakai beli pulsa/PLN/kursus lain.</p>
+            </div>
+            <div class="card" style="text-align:center;">
+                <h2>Early Bird ${settings.earlyBirdDiscount}%</h2>
+                <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:20px;">
+                    <div class="price-card">
+                        <h3>Pilih 1 Kursus</h3>
+                        <div class="price-old">Rp 200.000</div>
+                        <div class="price-new">Rp ${getDiscountedPrice(200000).toLocaleString()}</div>
+                        <button onclick="window.location.hash='#register'">Pilih</button>
+                    </div>
+                    <div class="price-card">
+                        <h3>Bundle (Akses Semua Kursus)</h3>
+                        <div class="price-old">Rp 800.000</div>
+                        <div class="price-new">Rp ${getDiscountedPrice(800000).toLocaleString()}</div>
+                        <button onclick="window.location.hash='#register-bundle'">Ambil Bundle</button>
+                    </div>
+                </div>
+            </div>
+            <footer style="background:rgba(0,0,0,0.3); border-radius:20px; padding:30px; margin-top:50px; color:white;">
+                <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:30px;">
+                    <div><h4>ALFARUQ</h4><p>Kursus Islam praktis</p></div>
+                    <div><h4>Kontak</h4><p>📞 ${settings.defaultWhatsappNumber}</p></div>
+                    <div><h4>Legal</h4><p><a href="#" onclick="showModal('disclaimer'); return false;">Disclaimer</a> | <a href="#" onclick="showModal('privacy'); return false;">Privacy</a></p></div>
+                    <div><h4>2025</h4><p>All rights reserved</p></div>
+                </div>
+            </footer>`;
             document.getElementById("appRoot").innerHTML = html;
             updateLandingCountdown();
             setInterval(updateLandingCountdown, 1000);
@@ -510,17 +435,22 @@
             if (!el) return;
             if (settings.earlyBirdEnabled && new Date() < new Date(settings.earlyBirdEndDate)) {
                 let diff = new Date(settings.earlyBirdEndDate) - new Date();
-                if (diff > 0) { let d = Math.floor(diff / 86400000), h = Math.floor((diff % 86400000) / 3600000), m = Math.floor((diff % 3600000) / 60000), s = Math.floor((diff % 60000) / 1000);
-                el.innerHTML = `🔥 Diskon ${settings.earlyBirdDiscount}% berlaku ${d}d ${h}h ${m}m ${s}s lagi!`; return; }
+                if (diff > 0) {
+                    let d = Math.floor(diff / 86400000);
+                    let h = Math.floor((diff % 86400000) / 3600000);
+                    let m = Math.floor((diff % 3600000) / 60000);
+                    let s = Math.floor((diff % 60000) / 1000);
+                    el.innerHTML = `Diskon ${settings.earlyBirdDiscount}% berlaku ${d}d ${h}h ${m}m ${s}s lagi!`;
+                    return;
+                }
             }
-            el.innerHTML = settings.earlyBirdEnabled ? "🎉 Early Bird berakhir! Cek harga normal." : "🏷️ Harga normal berlaku.";
+            el.innerHTML = "Early Bird berakhir! Cek harga normal.";
         }
 
         function showModal(type) {
             let title = "", content = "";
-            if (type === 'disclaimer') title = "⚠️ Disclaimer", content = "<p>1. Hasil belajar tergantung intensitas peserta.<br>2. Kursus self-paced.<br>3. Garansi 7 hari.</p>";
-            else if (type === 'privacy') title = "🔒 Privacy Policy", content = "<p>Data hanya untuk administrasi kursus.</p>";
-            else if (type === 'terms') title = "📜 Syarat & Ketentuan", content = "<p>Dengan mendaftar, Anda menyetujui semua ketentuan.</p>";
+            if (type === 'disclaimer') title = "Disclaimer", content = "<p>Hasil belajar tergantung intensitas peserta. Kursus self-paced. Garansi 7 hari.</p>";
+            else if (type === 'privacy') title = "Privacy Policy", content = "<p>Data hanya untuk administrasi kursus.</p>";
             let modalHtml = `<div class="modal" id="legalModal" style="display:flex;"><div class="modal-content"><span class="modal-close" onclick="closeModal()">&times;</span><h2>${title}</h2><hr>${content}<button onclick="closeModal()">Tutup</button></div></div>`;
             document.body.insertAdjacentHTML('beforeend', modalHtml);
         }
@@ -530,8 +460,13 @@
 
         function toggleDarkMode() {
             let current = document.documentElement.getAttribute("data-theme");
-            if (current === "light") { document.documentElement.setAttribute("data-theme", "dark"); localStorage.setItem("darkMode", "true"); }
-            else { document.documentElement.setAttribute("data-theme", "light"); localStorage.setItem("darkMode", "false"); }
+            if (current === "light") {
+                document.documentElement.setAttribute("data-theme", "dark");
+                localStorage.setItem("darkMode", "true");
+            } else {
+                document.documentElement.setAttribute("data-theme", "light");
+                localStorage.setItem("darkMode", "false");
+            }
             if (window.location.hash === "#dashboard" && currentUser) renderUserDashboard();
             else if (window.location.hash === "#landing") renderLandingPage();
         }
@@ -539,190 +474,212 @@
         // ======================== REGISTER & LOGIN ========================
         function renderRegisterForm(isBundle = false) {
             let price = getDiscountedPrice(isBundle ? 800000 : 200000);
-            let html = `<div class="card"><h2>${isBundle ? "🎁 Pendaftaran Bundle (Akses Semua Kursus)" : "📝 Pendaftaran Kursus (Pilih 1 Kursus)"}</h2><div class="alert-info">💰 Biaya: ${formatRupiah(price)}</div>
-            <form id="registerForm">
-                <div class="form-group"><label>Nama Lengkap</label><input type="text" id="regName" required></div>
-                <div class="form-group"><label>Email</label><input type="email" id="regEmail" required></div>
-                <div class="form-group"><label>Password</label><input type="password" id="regPassword" required></div>
-                <div class="form-group"><label>No WhatsApp</label><input type="text" id="regPhone" placeholder="6281234567890" required></div>
-                <div class="form-group"><label>Alamat</label><textarea id="regAddress" rows="2"></textarea></div>
-                ${!isBundle ? `<div class="form-group"><label>Pilih Kursus</label><select id="selectedCourse" required>${coursesData.map(c => `<option value="${c.id}">${c.title}</option>`).join('')}</select></div>` : ''}
-                <div class="form-group"><label>Kode Promo (opsional)</label><input type="text" id="promoCode"></div>
-                <div class="form-group"><label>Upload Bukti Bayar</label><input type="file" id="paymentProof" accept="image/*"></div>
-                <div class="checkbox-group"><input type="checkbox" id="agreeTerms" required> <label>Saya setuju <a href="#" onclick="showModal('terms'); return false;">Syarat & Ketentuan</a></label></div>
-                <button type="submit" class="btn-success">Daftar</button>
-                <button type="button" onclick="window.location.hash='#landing'" class="btn-back">Kembali</button>
-            </form></div>`;
+            let html = `<div class="card">
+                <h2>${isBundle ? "Pendaftaran Bundle (Akses Semua Kursus)" : "Pendaftaran Kursus (Pilih 1 Kursus)"}</h2>
+                <div class="alert-info">Biaya: ${formatRupiah(price)}</div>
+                <form id="registerForm">
+                    <div class="form-group"><label>Nama Lengkap</label><input type="text" id="regName" required></div>
+                    <div class="form-group"><label>Email</label><input type="email" id="regEmail" required></div>
+                    <div class="form-group"><label>Password</label><input type="password" id="regPassword" required></div>
+                    <div class="form-group"><label>No WhatsApp</label><input type="text" id="regPhone" required></div>
+                    <div class="form-group"><label>Alamat</label><textarea id="regAddress" rows="2"></textarea></div>
+                    ${!isBundle ? `<div class="form-group"><label>Pilih Kursus</label><select id="selectedCourse" required>${coursesData.map(c => `<option value="${c.id}">${c.title}</option>`).join('')}</select></div>` : ''}
+                    <div class="form-group"><label>Upload Bukti Bayar</label><input type="file" id="paymentProof" accept="image/*"></div>
+                    <div class="checkbox-group"><input type="checkbox" id="agreeTerms" required> <label>Saya setuju <a href="#" onclick="showModal('terms'); return false;">Syarat & Ketentuan</a></label></div>
+                    <button type="submit" class="btn-success">Daftar</button>
+                    <button type="button" onclick="window.location.hash='#landing'" class="btn-back">Kembali</button>
+                </form>
+            </div>`;
             document.getElementById("appRoot").innerHTML = html;
 
             document.getElementById("registerForm").onsubmit = async (e) => {
                 e.preventDefault();
-                if (!document.getElementById("agreeTerms").checked) { alert("Anda harus menyetujui Syarat & Ketentuan!"); return; }
-                
+                if (!document.getElementById("agreeTerms").checked) {
+                    alert("Anda harus menyetujui Syarat & Ketentuan!");
+                    return;
+                }
                 let file = document.getElementById("paymentProof").files[0];
                 let paymentProofUrl = file ? await uploadToImgBB(file) : "https://via.placeholder.com/150?text=Bukti+Bayar";
-                let email = document.getElementById("regEmail").value, password = document.getElementById("regPassword").value;
-                let fullName = document.getElementById("regName").value, phone = document.getElementById("regPhone").value, address = document.getElementById("regAddress").value;
+                let email = document.getElementById("regEmail").value;
+                let password = document.getElementById("regPassword").value;
+                let fullName = document.getElementById("regName").value;
+                let phone = document.getElementById("regPhone").value;
+                let address = document.getElementById("regAddress").value;
                 let selectedCourse = !isBundle ? parseInt(document.getElementById("selectedCourse").value) : null;
-                let promoCode = document.getElementById("promoCode").value;
                 
-                // Cek promo code
-                let finalPrice = price;
-                if (promoCode) {
-                    const { data: promo } = await supabaseClient.from('promo_codes').select('*').eq('code', promoCode.toUpperCase()).single();
-                    if (promo && promo.is_active) {
-                        finalPrice = Math.round(price * (1 - promo.discount_percent / 100));
-                        alert(`✅ Kode promo ${promoCode} berhasil! Diskon ${promo.discount_percent}%. Harga menjadi ${formatRupiah(finalPrice)}`);
-                    } else {
-                        alert("❌ Kode promo tidak valid atau sudah kadaluarsa.");
-                        return;
-                    }
-                }
-                
-                const { data, error } = await supabaseClient.auth.signUp({ 
+                const { error } = await supabaseClient.auth.signUp({ 
                     email, password, 
-                    options: { data: { full_name: fullName, phone, address, payment_proof: paymentProofUrl, status: "pending", selected_course: selectedCourse, is_bundle: isBundle, price_paid: finalPrice } } 
+                    options: { data: { full_name: fullName, phone, address, payment_proof: paymentProofUrl, status: "pending", selected_course: selectedCourse, is_bundle: isBundle, price_paid: price } } 
                 });
                 if (error) { alert("Registrasi gagal: " + error.message); return; }
                 
-                if (data.user) {
-                    await supabaseClient.from('profiles').update({ 
-                        selected_course: selectedCourse, 
-                        is_bundle: isBundle,
-                        price_paid: finalPrice,
-                        status: 'pending'
-                    }).eq('user_id', data.user.id);
-                    
-                    await supabaseClient.from('transactions').insert({
-                        user_id: data.user.id,
-                        type: 'purchase',
-                        amount: finalPrice,
-                        description: isBundle ? 'Pembelian Bundle' : `Pembelian ${coursesData.find(c => c.id === selectedCourse)?.title}`,
-                        status: 'pending'
-                    });
-                }
-                
-                alert("✅ Pendaftaran berhasil! Mohon tunggu verifikasi admin.");
+                alert("Pendaftaran berhasil! Mohon tunggu verifikasi admin.");
                 window.location.hash = "#login";
             };
         }
 
         function renderLoginForm() {
-            let html = `<div class="card"><h2>🔐 Login</h2><form id="loginForm"><div class="form-group"><label>Email</label><input type="email" id="loginEmail"></div>
-            <div class="form-group"><label>Password</label><input type="password" id="loginPassword"></div><button type="submit">Login</button>
-            <button type="button" onclick="window.location.hash='#forgot-password'" style="background:none;color:var(--secondary);">Lupa Password?</button>
-            <button type="button" onclick="window.location.hash='#landing'" class="btn-outline">Kembali</button></form></div>`;
+            let html = `<div class="card">
+                <h2>Login</h2>
+                <form id="loginForm">
+                    <div class="form-group"><label>Email</label><input type="email" id="loginEmail"></div>
+                    <div class="form-group"><label>Password</label><input type="password" id="loginPassword"></div>
+                    <button type="submit">Login</button>
+                    <button type="button" onclick="window.location.hash='#forgot-password'" style="background:none;color:var(--secondary);">Lupa Password?</button>
+                    <button type="button" onclick="window.location.hash='#landing'" class="btn-outline">Kembali</button>
+                </form>
+            </div>`;
             document.getElementById("appRoot").innerHTML = html;
+            
             document.getElementById("loginForm").onsubmit = async (e) => {
                 e.preventDefault();
-                let email = document.getElementById("loginEmail").value, password = document.getElementById("loginPassword").value;
+                let email = document.getElementById("loginEmail").value;
+                let password = document.getElementById("loginPassword").value;
                 const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
                 if (error) { alert("Login gagal: " + error.message); return; }
                 currentUser = data.user;
                 await loadUserProfile();
                 await checkAdminStatus();
-                if (currentUser.status !== 'approved') { alert("Akun Anda belum disetujui oleh admin. Silakan tunggu verifikasi."); await supabaseClient.auth.signOut(); window.location.hash = "#landing"; return; }
+                if (currentUser.status !== 'approved') {
+                    alert("Akun Anda belum disetujui oleh admin. Silakan tunggu verifikasi.");
+                    await supabaseClient.auth.signOut();
+                    window.location.hash = "#landing";
+                    return;
+                }
                 window.location.hash = "#dashboard";
             };
         }
 
         function renderForgotPassword() {
-            let html = `<div class="card"><h2>🔐 Lupa Password</h2><form id="forgotForm"><div class="form-group"><label>Email</label><input type="email" id="fpEmail"></div><button type="submit">Kirim Reset Password</button><button type="button" onclick="window.location.hash='#login'" class="btn-outline">Kembali</button></form></div>`;
+            let html = `<div class="card">
+                <h2>Lupa Password</h2>
+                <form id="forgotForm">
+                    <div class="form-group"><label>Email</label><input type="email" id="fpEmail"></div>
+                    <button type="submit">Kirim Reset Password</button>
+                    <button type="button" onclick="window.location.hash='#login'" class="btn-outline">Kembali</button>
+                </form>
+            </div>`;
             document.getElementById("appRoot").innerHTML = html;
+            
             document.getElementById("forgotForm").onsubmit = async (e) => {
                 e.preventDefault();
                 let email = document.getElementById("fpEmail").value;
                 const { error } = await supabaseClient.auth.resetPasswordForEmail(email);
                 if (error) alert("Gagal: " + error.message);
-                else alert("✅ Cek email Anda untuk link reset password.");
+                else alert("Cek email Anda untuk link reset password.");
             };
         }
 
         // ======================== DASHBOARD USER ========================
         async function renderUserDashboard() {
-            let html = `<div class="tabs"><div class="tab active">📚 Dashboard</div><div class="tab" id="logoutTab">🚪 Logout</div><div class="tab" id="resellerTab">🏪 Reseller</div><div class="tab" id="walletTab">💰 Wallet</div><div class="tab" id="certificateTab">🎓 Sertifikat</div><div class="tab" id="ppobTab">🛒 PPOB</div><div class="tab" id="practicalTab">📝 Nilai Praktik</div></div>
-            <div class="card"><h2>Selamat Datang, ${currentUser.profile?.full_name || currentUser.email}!</h2><p>📞 WhatsApp: ${currentUser.phone || settings.defaultWhatsappNumber}</p><p>💰 Saldo Wallet: <strong>${formatRupiah(currentUser.commission || 0)}</strong></p><p>🔗 Kode Referral: <code>${currentUser.referralCode}</code> <button onclick="copyReferral()" class="btn-copy">Salin Link</button></p>
-            <p><strong>📚 Paket yang dipilih:</strong> ${currentUser.isBundle ? '🎁 Bundle (Akses Semua Kursus)' : (coursesData.find(c => c.id === currentUser.selectedCourse)?.title || 'Belum pilih kursus')}</p>
-            ${!currentUser.isBundle && !currentUser.selectedCourse ? '<p class="alert-warning" style="padding:10px;">⚠️ Anda belum memilih paket kursus. Silakan hubungi admin.</p>' : ''}
-            ${currentUser.purchasedCourses?.length > 0 ? `<p><strong>🛒 Kursus tambahan yang dibeli:</strong> ${currentUser.purchasedCourses.map(id => coursesData.find(c => c.id === id)?.title).join(', ')}</p>` : ''}</div>
-            <div class="course-grid">${coursesData.map(c => {
-                const isAccessible = isCourseAccessible(c.id);
-                const canPurchase = !isAccessible && !currentUser?.isBundle && currentUser?.selectedCourse !== c.id;
-                return `<div class="course-card ${!isAccessible ? 'disabled' : ''}" data-id="${c.id}">
-                    <div class="course-icon">${c.icon || '📚'}</div>
-                    <div class="course-title">${c.title}</div>
-                    <p>${c.description || ''}</p>
-                    ${!isAccessible ? `<div class="lock-badge">🔒 Belum dibeli</div>` : ''}
-                    <div class="course-price" style="margin: 10px 0; font-weight: bold;">${formatRupiah(c.price)}</div>
-                    ${c.telegram_group && isAccessible ? `<div style="margin-top:5px;"><a href="${c.telegram_group}" target="_blank" class="btn-telegram" style="display:inline-block; padding:8px 16px;">💬 Grup Diskusi</a></div>` : ''}
-                    ${isAccessible ? `<button class="select-course" style="margin-top:10px;">📖 Akses Kursus</button>` : (canPurchase ? `<button class="btn-buy buy-course" data-id="${c.id}" data-price="${c.price}" style="margin-top:10px; background:#27ae60;">🛒 Beli dengan Wallet (${formatRupiah(c.price)})</button>` : `<button class="btn" style="margin-top:10px; background:#7f8c8d;" disabled>🔒 Terkunci</button>`)}
-                </div>`;
-            }).join('')}</div>`;
+            let html = `<div class="tabs">
+                <div class="tab active">Dashboard</div>
+                <div class="tab" id="logoutTab">Logout</div>
+                <div class="tab" id="resellerTab">Reseller</div>
+                <div class="tab" id="walletTab">Wallet</div>
+                <div class="tab" id="certificateTab">Sertifikat</div>
+            </div>
+            <div class="card">
+                <h2>Selamat Datang, ${currentUser.profile?.full_name || currentUser.email}!</h2>
+                <p>WhatsApp: ${currentUser.phone || settings.defaultWhatsappNumber}</p>
+                <p>Saldo Wallet: <strong>${formatRupiah(currentUser.commission || 0)}</strong></p>
+                <p>Kode Referral: <code>${currentUser.referralCode}</code> <button onclick="copyReferral()" class="btn-copy">Salin Link</button></p>
+                <p><strong>Paket yang dipilih:</strong> ${currentUser.isBundle ? 'Bundle (Akses Semua Kursus)' : (coursesData.find(c => c.id === currentUser.selectedCourse)?.title || 'Belum pilih kursus')}</p>
+                ${currentUser.purchasedCourses?.length > 0 ? `<p><strong>Kursus tambahan:</strong> ${currentUser.purchasedCourses.map(id => coursesData.find(c => c.id === id)?.title).join(', ')}</p>` : ''}
+            </div>
+            <div class="course-grid">
+                ${coursesData.map(c => {
+                    const isAccessible = isCourseAccessible(c.id);
+                    const canPurchase = !isAccessible && !currentUser?.isBundle && currentUser?.selectedCourse !== c.id;
+                    return `<div class="course-card ${!isAccessible ? 'disabled' : ''}" data-id="${c.id}">
+                        <div class="course-icon">${c.icon || 'book'}</div>
+                        <div class="course-title">${c.title}</div>
+                        <p style="font-size:0.9rem;">${c.description || ''}</p>
+                        <div class="course-price">${formatRupiah(c.price)}</div>
+                        ${!isAccessible ? `<div class="lock-badge">Terkunci</div>` : ''}
+                        <div class="btn-group">
+                            ${isAccessible ? `<button class="btn-success select-course" data-id="${c.id}">Akses Kursus</button>` : ''}
+                            ${canPurchase ? `<button class="btn-buy buy-course" data-id="${c.id}" data-price="${c.price}" data-name="${c.title}">Beli dengan Wallet (${formatRupiah(c.price)})</button>` : ''}
+                            ${c.telegram_group && isAccessible ? `<a href="${c.telegram_group}" target="_blank" class="btn-telegram">Grup Diskusi</a>` : ''}
+                        </div>
+                    </div>`;
+                }).join('')}
+            </div>`;
             
             if (currentCourseForUser && isCourseAccessible(currentCourseForUser.id)) {
                 let completed = currentUser.completedLessons[currentCourseForUser.id] || [];
                 let totalLessons = (currentCourseForUser.lessons || []).length;
                 let progressPercent = totalLessons > 0 ? (completed.length / totalLessons) * 100 : 0;
-                html += `<div class="card"><h3>📊 Progress Belajar: ${currentCourseForUser.title}</h3><div class="progress-bar"><div class="progress-fill" style="width:${progressPercent}%;"></div></div><p>${completed.length}/${totalLessons} materi selesai</p>
-                <div class="lesson-list">${(currentCourseForUser.lessons || []).map((l, idx) => `<div class="lesson-item ${completed.includes(idx) ? 'completed' : ''}" data-idx="${idx}"><span>${idx+1}. ${l.title}</span><span>${completed.includes(idx) ? '✅' : '📖'}</span></div>`).join('')}</div>
-                ${currentCourseForUser.telegram_group ? `<div style="margin-top:20px; text-align:center;" class="group-card"><strong>💬 Grup Diskusi & Kumpul Tugas</strong><br><p>Diskusikan materi, tanya jawab, dan kumpulkan tugas praktik di grup Telegram berikut:</p><a href="${currentCourseForUser.telegram_group}" target="_blank">📱 Join Grup Telegram ${currentCourseForUser.title}</a></div>` : ''}
+                html += `<div class="card">
+                    <h3>Progress Belajar: ${currentCourseForUser.title}</h3>
+                    <div class="progress-bar"><div class="progress-fill" style="width:${progressPercent}%;"></div></div>
+                    <p>${completed.length}/${totalLessons} materi selesai</p>
+                    <div class="lesson-list">
+                        ${(currentCourseForUser.lessons || []).map((l, idx) => `<div class="lesson-item ${completed.includes(idx) ? 'completed' : ''}" data-idx="${idx}">
+                            <span>${idx+1}. ${l.title}</span>
+                            <span>${completed.includes(idx) ? 'Selesai' : 'Belum'}</span>
+                        </div>`).join('')}
+                    </div>
+                    ${currentCourseForUser.telegram_group ? `<div class="group-card">
+                        <strong>Grup Diskusi & Tugas</strong>
+                        <p>Diskusikan materi, tanya jawab, dan kumpulkan tugas praktik di grup Telegram:</p>
+                        <a href="${currentCourseForUser.telegram_group}" target="_blank">Join Grup Telegram ${currentCourseForUser.title}</a>
+                    </div>` : ''}
                 </div>`;
             }
             document.getElementById("appRoot").innerHTML = html;
             
-            // Event listeners untuk akses kursus
-            document.querySelectorAll(".select-course").forEach((btn, i) => { 
-                btn.onclick = () => { 
-                    let course = coursesData[i];
-                    if (isCourseAccessible(course.id)) {
-                        currentCourseForUser = course; 
-                        renderUserDashboard(); 
-                    }
-                }; 
-            });
-            
-            // Event listeners untuk beli kursus
-            document.querySelectorAll(".buy-course").forEach(btn => {
-                btn.onclick = async () => {
+            document.querySelectorAll(".select-course").forEach(btn => {
+                btn.onclick = () => {
                     let courseId = parseInt(btn.getAttribute("data-id"));
-                    let price = parseInt(btn.getAttribute("data-price"));
-                    let discountedPrice = getDiscountedPrice(price);
-                    await purchaseCourseWithWallet(courseId, discountedPrice);
+                    currentCourseForUser = coursesData.find(c => c.id === courseId);
                     renderUserDashboard();
                 };
             });
             
-            document.querySelectorAll(".lesson-item").forEach(item => { 
-                item.onclick = () => { 
-                    selectedLessonIndex = parseInt(item.getAttribute("data-idx")); 
-                    renderLessonDetail(); 
-                }; 
+            document.querySelectorAll(".buy-course").forEach(btn => {
+                btn.onclick = async () => {
+                    let courseId = parseInt(btn.getAttribute("data-id"));
+                    let price = parseInt(btn.getAttribute("data-price"));
+                    await purchaseCourseWithWallet(courseId, getDiscountedPrice(price));
+                    renderUserDashboard();
+                };
             });
-            document.getElementById("logoutTab").onclick = async () => { await supabaseClient.auth.signOut(); currentUser = null; window.location.hash = "#landing"; };
+            
+            document.querySelectorAll(".lesson-item").forEach(item => {
+                item.onclick = () => {
+                    selectedLessonIndex = parseInt(item.getAttribute("data-idx"));
+                    renderLessonDetail();
+                };
+            });
+            
+            document.getElementById("logoutTab").onclick = async () => { 
+                await supabaseClient.auth.signOut(); 
+                currentUser = null; 
+                window.location.hash = "#landing";
+            };
             document.getElementById("resellerTab").onclick = () => renderResellerInfo();
             document.getElementById("walletTab").onclick = () => renderWalletPage();
             document.getElementById("certificateTab").onclick = () => renderCertificate();
-            document.getElementById("ppobTab").onclick = () => renderMarketplacePage();
-            document.getElementById("practicalTab").onclick = () => renderPracticalScoresPage();
         }
         
         function renderLessonDetail() {
             if (!isCourseAccessible(currentCourseForUser.id)) {
-                alert("Anda tidak memiliki akses ke kursus ini. Silakan beli kursus terlebih dahulu.");
+                alert("Anda tidak memiliki akses ke kursus ini.");
                 renderUserDashboard();
                 return;
             }
             let lesson = currentCourseForUser.lessons[selectedLessonIndex];
-            let html = `<div class="tabs"><div class="tab" id="backToCourse">← Kembali</div><div class="tab active">${lesson.title}</div><div class="tab" id="quizTab">📝 Quiz</div></div>
-            <div class="card">${lesson.videoUrl ? `<div class="video-wrapper"><iframe src="${lesson.videoUrl}" frameborder="0" allowfullscreen></iframe></div>` : '<div class="alert-info">📖 Materi pembelajaran akan segera ditambahkan</div>'}
-            ${lesson.mufradat?.length ? `<h3>📖 Kosakata</h3><table class="mufradat-table"><thead>运转<th>Arab</th><th>Latin</th><th>Arti</th></tr></thead><tbody>${lesson.mufradat.map(m => `<tr>
-                    <td>${m.arab}ER20</div></td>
-                    <td>${m.latin}ER20</div></td>
-                    <td>${m.arti}ER20</div></td>
-                </tr>`).join('')}</tbody></table>` : ''}
-            ${lesson.dialogs?.length ? `<h3>💬 Dialog</h3>${lesson.dialogs.map(d => `<div class="alert-info">${d.text.replace(/\n/g, '<br>')}${d.translation ? `<br><br><strong>Terjemahan:</strong><br>${d.translation}` : ''}</div>`).join('')}` : ''}
-            <button class="btn-success" id="markCompleteBtn">✅ Tandai Selesai</button>
-            <button id="backBtn" class="btn-back">Kembali</button></div>`;
+            let html = `<div class="tabs">
+                <div class="tab" id="backToCourse">Kembali</div>
+                <div class="tab active">${lesson.title}</div>
+                <div class="tab" id="quizTab">Quiz</div>
+            </div>
+            <div class="card">
+                ${lesson.videoUrl ? `<div class="video-wrapper"><iframe src="${lesson.videoUrl}" frameborder="0" allowfullscreen></iframe></div>` : '<div class="alert-info">Materi pembelajaran akan segera ditambahkan</div>'}
+                <button class="btn-success" id="markCompleteBtn">Tandai Selesai</button>
+                <button id="backBtn" class="btn-back">Kembali</button>
+            </div>`;
             document.getElementById("appRoot").innerHTML = html;
             document.getElementById("backToCourse").onclick = () => renderUserDashboard();
             document.getElementById("backBtn").onclick = () => renderUserDashboard();
@@ -732,11 +689,15 @@
                 if (!completed.includes(selectedLessonIndex)) {
                     completed.push(selectedLessonIndex);
                     currentUser.completedLessons[currentCourseForUser.id] = completed;
-                    await supabaseClient.from('user_progress').upsert({ user_id: currentUser.id, course_id: currentCourseForUser.id, completed_lessons: completed });
-                    alert("✅ Materi selesai! Progress tersimpan.");
+                    await supabaseClient.from('user_progress').upsert({ 
+                        user_id: currentUser.id, 
+                        course_id: currentCourseForUser.id, 
+                        completed_lessons: completed 
+                    });
+                    alert("Materi selesai! Progress tersimpan.");
                     renderUserDashboard();
                 } else {
-                    alert("✅ Materi sudah ditandai selesai sebelumnya.");
+                    alert("Materi sudah ditandai selesai sebelumnya.");
                 }
             };
         }
@@ -744,16 +705,34 @@
         function renderQuizPage() {
             let lesson = currentCourseForUser.lessons[selectedLessonIndex];
             let existing = getQuizScore(currentUser.id, currentCourseForUser.id, selectedLessonIndex);
-            if (existing) { alert(`Anda sudah mengerjakan quiz ini dengan nilai: ${existing}/10`); renderLessonDetail(); return; }
-            let html = `<div class="tabs"><div class="tab" id="backToLesson">← Kembali</div><div class="tab active">📝 Quiz: ${lesson.title}</div></div>
-            <div class="card"><form id="quizForm">${(lesson.quiz || []).map((q, idx) => `<div class="form-group"><label>${idx + 1}. ${q.q}</label>${q.opt.map((o, oi) => `<div><input type="radio" name="q${idx}" value="${oi}"> ${o}</div>`).join('')}</div>`).join('')}
-            <button type="submit" class="btn-success">Kirim Jawaban</button></form><div id="quizResult"></div></div>`;
+            if (existing) { 
+                alert(`Anda sudah mengerjakan quiz ini dengan nilai: ${existing}/10`);
+                renderLessonDetail();
+                return;
+            }
+            let html = `<div class="tabs">
+                <div class="tab" id="backToLesson">Kembali</div>
+                <div class="tab active">Quiz: ${lesson.title}</div>
+            </div>
+            <div class="card">
+                <form id="quizForm">
+                    ${(lesson.quiz || []).map((q, idx) => `<div class="form-group">
+                        <label>${idx + 1}. ${q.q}</label>
+                        ${q.opt.map((o, oi) => `<div><input type="radio" name="q${idx}" value="${oi}"> ${o}</div>`).join('')}
+                    </div>`).join('')}
+                    <button type="submit" class="btn-success">Kirim Jawaban</button>
+                </form>
+                <div id="quizResult"></div>
+            </div>`;
             document.getElementById("appRoot").innerHTML = html;
             document.getElementById("backToLesson").onclick = () => renderLessonDetail();
             document.getElementById("quizForm").onsubmit = (e) => {
                 e.preventDefault();
                 let score = 0;
-                lesson.quiz.forEach((q, idx) => { let sel = document.querySelector(`input[name="q${idx}"]:checked`); if (sel && parseInt(sel.value) === q.jawab) score++; });
+                lesson.quiz.forEach((q, idx) => {
+                    let sel = document.querySelector(`input[name="q${idx}"]:checked`);
+                    if (sel && parseInt(sel.value) === q.jawab) score++;
+                });
                 localStorage.setItem(`quiz_${currentUser.id}_${currentCourseForUser.id}_${selectedLessonIndex}`, score);
                 if (score >= 7) {
                     let completed = currentUser.completedLessons[currentCourseForUser.id] || [];
@@ -762,27 +741,12 @@
                         currentUser.completedLessons[currentCourseForUser.id] = completed;
                         supabaseClient.from('user_progress').upsert({ user_id: currentUser.id, course_id: currentCourseForUser.id, completed_lessons: completed });
                     }
-                    document.getElementById("quizResult").innerHTML = `<div class="alert-success">✅ Lulus! Nilai: ${score}/10</div>`;
+                    document.getElementById("quizResult").innerHTML = `<div class="alert-success">Lulus! Nilai: ${score}/10</div>`;
                     setTimeout(() => renderUserDashboard(), 2000);
                 } else {
-                    document.getElementById("quizResult").innerHTML = `<div class="alert-danger">❌ Tidak lulus. Nilai: ${score}/10. Minimal 7.</div>`;
+                    document.getElementById("quizResult").innerHTML = `<div class="alert-danger">Tidak lulus. Nilai: ${score}/10. Minimal 7.</div>`;
                 }
             };
-        }
-        
-        function renderPracticalScoresPage() {
-            let userScores = practicalScores.filter(s => s.user_id === currentUser.id);
-            let html = `<div class="tabs"><div class="tab" id="backToDash">← Kembali</div><div class="tab active">📝 Nilai Praktik</div></div>
-            <div class="card"><h2>📊 Nilai Ujian Praktik Anda</h2>${userScores.length === 0 ? '<p>Belum ada nilai praktik.</p>' : `<table class="mufradat-table"><thead>运转<th>Kursus</th><th>Materi</th><th>Nilai</th><th>Catatan</th></tr></thead><tbody>${userScores.map(s => { let course = coursesData.find(c => c.id === s.course_id); let lesson = course?.lessons[s.lesson_id]; return `<tr>
-                <td>${course?.title || '-'}ER20</div></td>
-                <td>${lesson?.title || '-'}ER20</div></td>
-                <td><strong>${s.score}/100</strong>ER20</div></td>
-                <td>${s.notes || '-'}ER20</div></td>
-                </tr>`; }).join('')}</tbody><table>`}
-            <button id="backBtn" class="btn-back">Kembali</button></div>`;
-            document.getElementById("appRoot").innerHTML = html;
-            document.getElementById("backToDash").onclick = () => renderUserDashboard();
-            document.getElementById("backBtn").onclick = () => renderUserDashboard();
         }
         
         async function renderCertificate() {
@@ -795,49 +759,76 @@
             let completed = currentUser.completedLessons[course.id] || [];
             let allCompleted = completed.length === (course.lessons?.length || 0);
             let certId = `${currentUser.id}_${course.id}_${Date.now()}`;
-            let finalScore = getAverageScore(currentUser.id, course.id);
-            let html = `<div class="tabs"><div class="tab" id="backToDash">← Kembali</div><div class="tab active">🎓 Sertifikat Kelulusan</div></div><div class="card" style="text-align: center;">`;
+            let html = `<div class="tabs">
+                <div class="tab" id="backToDash">Kembali</div>
+                <div class="tab active">Sertifikat Kelulusan</div>
+            </div>
+            <div class="card" style="text-align: center;">`;
             if (!allCompleted) {
-                html += `<div class="alert-warning">⚠️ Selesaikan semua materi dan quiz terlebih dahulu untuk mendapatkan sertifikat.</div><button id="backBtn" class="btn-back">Kembali</button>`;
+                html += `<div class="alert-warning">Selesaikan semua materi dan quiz terlebih dahulu untuk mendapatkan sertifikat.</div>
+                <button id="backBtn" class="btn-back">Kembali</button>`;
             } else {
-                html += `<div class="certificate-container" id="certificateContent"><div class="certificate-title">🎓 ALFARUQ</div><div class="certificate-subtitle">Online Course</div>
-                <div class="certificate-name">${escapeHtml(currentUser.name)}</div><div class="certificate-course">${escapeHtml(course.title)}</div>
-                <p>Telah menyelesaikan program dengan predikat <strong>Memuaskan</strong></p><p>Nilai Akhir: <strong>${finalScore} / 100</strong></p>
-                <div style="margin: 20px auto;"><div id="qrcode" style="width: 100px; margin: 0 auto;"></div></div>
-                <div class="certificate-footer"><p>ID Sertifikat: ${certId}</p><p>Terbit: ${new Date().toLocaleDateString('id-ID')}</p></div></div>
-                <button id="downloadCertBtn" class="btn-success">📥 Download Sertifikat PDF</button><button id="backBtn" class="btn-back">Kembali</button>`;
+                html += `<div class="certificate-container" id="certificateContent">
+                    <div class="certificate-title">ALFARUQ</div>
+                    <div class="certificate-name">${escapeHtml(currentUser.name)}</div>
+                    <div class="certificate-course">${escapeHtml(course.title)}</div>
+                    <p>Telah menyelesaikan program dengan predikat Memuaskan</p>
+                    <div class="certificate-footer"><p>ID Sertifikat: ${certId}</p><p>Terbit: ${new Date().toLocaleDateString('id-ID')}</p></div>
+                </div>
+                <button id="downloadCertBtn" class="btn-success">Download Sertifikat PDF</button>
+                <button id="backBtn" class="btn-back">Kembali</button>`;
             }
             html += `</div>`;
             document.getElementById("appRoot").innerHTML = html;
             document.getElementById("backToDash").onclick = () => renderUserDashboard();
             document.getElementById("backBtn").onclick = () => renderUserDashboard();
             if (document.getElementById("downloadCertBtn")) {
-                new QRCode(document.getElementById("qrcode"), { text: `${window.location.origin}?verify=${certId}`, width: 100, height: 100 });
-                document.getElementById("downloadCertBtn").onclick = () => { let element = document.getElementById("certificateContent"); html2pdf().set({ margin: 0.5, filename: `Sertifikat_${currentUser.name}.pdf`, jsPDF: { unit: 'in', format: 'a4', orientation: 'landscape' } }).from(element).save(); };
+                document.getElementById("downloadCertBtn").onclick = () => {
+                    alert("Fitur download PDF akan segera hadir");
+                };
             }
         }
         
         function renderResellerInfo() {
-            let html = `<div class="tabs"><div class="tab" id="backToDash">← Kembali</div><div class="tab active">🏪 Reseller</div></div>
-            <div class="card"><h2>💎 Status Reseller Anda</h2><p>Kode Referral: <code>${currentUser.referralCode}</code></p><p>💰 Total Komisi: <strong>${formatRupiah(currentUser.commission || 0)}</strong></p>
-            <h3>Level Komisi</h3><table class="commission-table"><thead>运转<th>Level</th><th>Referral</th><th>Komisi</th></tr></thead><tbody>
-            <tr><td class="badge-gold">BASIC</div><td>0-49</div><td>20%</div></tr>
-            <tr><td class="badge-gold">BRONZE</div><td>50-99</div><td>25%</div></tr>
-            <tr><td class="badge-gold">SILVER</div><td>100-499</div><td>30%</div></tr>
-            <tr><td class="badge-gold">GOLD</div><td>500-999</div><td>35%</div></tr>
-            <tr><td class="badge-gold">PLATINUM</div><td>1000-4999</div><td>40%</div></tr>
-            <tr><td class="badge-gold">DIAMOND</div><td>5000+</div><td>50%</div></tr>
-            </tbody></table><button id="backBtn" class="btn-back">Kembali</button></div>`;
+            let html = `<div class="tabs">
+                <div class="tab" id="backToDash">Kembali</div>
+                <div class="tab active">Reseller</div>
+            </div>
+            <div class="card">
+                <h2>Status Reseller Anda</h2>
+                <p>Kode Referral: <code>${currentUser.referralCode}</code></p>
+                <p>Total Komisi: <strong>${formatRupiah(currentUser.commission || 0)}</strong></p>
+                <h3>Level Komisi</h3>
+                <table class="commission-table">
+                    <thead><tr><th>Level</th><th>Referral</th><th>Komisi</th></tr></thead>
+                    <tbody>
+                        <tr><td>BASIC</td><td>0-49</td><td>20%</td></tr>
+                        <tr><td>BRONZE</td><td>50-99</td><td>25%</td></tr>
+                        <tr><td>SILVER</td><td>100-499</td><td>30%</td></tr>
+                        <tr><td>GOLD</td><td>500-999</td><td>35%</td></tr>
+                        <tr><td>PLATINUM</td><td>1000-4999</td><td>40%</td></tr>
+                        <tr><td>DIAMOND</td><td>5000+</td><td>50%</td></tr>
+                    </tbody>
+                </table>
+                <button id="backBtn" class="btn-back">Kembali</button>
+            </div>`;
             document.getElementById("appRoot").innerHTML = html;
             document.getElementById("backToDash").onclick = () => renderUserDashboard();
             document.getElementById("backBtn").onclick = () => renderUserDashboard();
         }
         
         function renderWalletPage() {
-            let html = `<div class="tabs"><div class="tab" id="backToDash">← Kembali</div><div class="tab active">💰 Dompet</div><div class="tab" id="withdrawTab">💸 Withdraw</div></div>
-            <div class="card" style="text-align:center;"><h2>💳 Saldo Anda</h2><div style="font-size:2rem; color:#27ae60;">${formatRupiah(currentUser.commission || 0)}</div>
-            <button class="btn-edit" onclick="alert('Hubungi admin via WhatsApp untuk top up.')">📱 Top Up</button>
-            <button class="btn-back" id="backBtn">Kembali</button></div>`;
+            let html = `<div class="tabs">
+                <div class="tab" id="backToDash">Kembali</div>
+                <div class="tab active">Dompet</div>
+                <div class="tab" id="withdrawTab">Withdraw</div>
+            </div>
+            <div class="card" style="text-align:center;">
+                <h2>Saldo Anda</h2>
+                <div style="font-size:2rem; color:#27ae60;">${formatRupiah(currentUser.commission || 0)}</div>
+                <button class="btn-edit" onclick="alert('Hubungi admin via WhatsApp untuk top up.')">Top Up</button>
+                <button id="backBtn" class="btn-back">Kembali</button>
+            </div>`;
             document.getElementById("appRoot").innerHTML = html;
             document.getElementById("backToDash").onclick = () => renderUserDashboard();
             document.getElementById("backBtn").onclick = () => renderUserDashboard();
@@ -845,11 +836,21 @@
         }
         
         function renderWithdrawPage() {
-            let html = `<div class="tabs"><div class="tab" id="backToWallet">← Kembali</div><div class="tab active">💸 Withdraw</div></div>
-            <div class="card"><h2>💸 Ajukan Penarikan</h2><div class="alert-info">Minimal withdraw Rp 100.000</div>
-            <form id="withdrawForm"><div class="form-group"><label>Jumlah</label><input type="number" id="amount" min="100000" placeholder="100000"></div>
-            <div class="form-group"><label>Bank</label><input type="text" id="bank" placeholder="BCA, BSI, Mandiri"></div><div class="form-group"><label>No Rekening</label><input type="text" id="account" placeholder="1234567890"></div>
-            <button type="submit" class="btn-success">Ajukan</button></form><button id="backBtn" class="btn-back">Kembali</button></div>`;
+            let html = `<div class="tabs">
+                <div class="tab" id="backToWallet">Kembali</div>
+                <div class="tab active">Withdraw</div>
+            </div>
+            <div class="card">
+                <h2>Ajukan Penarikan</h2>
+                <div class="alert-info">Minimal withdraw Rp 100.000</div>
+                <form id="withdrawForm">
+                    <div class="form-group"><label>Jumlah</label><input type="number" id="amount" min="100000" placeholder="100000"></div>
+                    <div class="form-group"><label>Bank</label><input type="text" id="bank" placeholder="BCA, BSI, Mandiri"></div>
+                    <div class="form-group"><label>No Rekening</label><input type="text" id="account" placeholder="1234567890"></div>
+                    <button type="submit" class="btn-success">Ajukan</button>
+                </form>
+                <button id="backBtn" class="btn-back">Kembali</button>
+            </div>`;
             document.getElementById("appRoot").innerHTML = html;
             document.getElementById("backToWallet").onclick = () => renderWalletPage();
             document.getElementById("backBtn").onclick = () => renderUserDashboard();
@@ -858,184 +859,241 @@
                 let amt = parseInt(document.getElementById("amount").value);
                 if (amt < 100000) { alert("Minimal Rp100.000"); return; }
                 if (amt > (currentUser.commission || 0)) { alert("Saldo tidak cukup"); return; }
-                await supabaseClient.from('withdraw_requests').insert({ user_id: currentUser.id, amount: amt, bank_name: document.getElementById("bank").value, bank_account: document.getElementById("account").value });
-                alert("✅ Request withdraw diajukan. Menunggu verifikasi admin.");
+                await supabaseClient.from('withdraw_requests').insert({ 
+                    user_id: currentUser.id, 
+                    amount: amt, 
+                    bank_name: document.getElementById("bank").value, 
+                    bank_account: document.getElementById("account").value 
+                });
+                alert("Request withdraw diajukan. Menunggu verifikasi admin.");
                 renderWalletPage();
             };
         }
-
-        function renderMarketplacePage() {
-            let ppobProducts = [{ name: "Pulsa 10rb", sku: "pulsa10k", price: 10500, icon: "📱" }, { name: "Pulsa 20rb", sku: "pulsa20k", price: 20500, icon: "📱" }, 
-                { name: "Pulsa 50rb", sku: "pulsa50k", price: 50500, icon: "📱" }, { name: "Token PLN 50rb", sku: "pln50rb", price: 50500, icon: "⚡" }, { name: "Token PLN 100rb", sku: "pln100rb", price: 100500, icon: "⚡" }];
-            let html = `<div class="tabs"><div class="tab" id="backToDash">← Kembali</div><div class="tab active">🛒 PPOB</div></div>
-            <div class="card" style="background:#1e6b3b;color:white;text-align:center">💳 Saldo: ${formatRupiah(currentUser.commission || 0)}</div>
-            <div class="card"><h3>Pilih Produk</h3><div class="benefit-grid">${ppobProducts.map(p => `<div class="price-card" style="cursor:pointer" onclick="document.getElementById('sku').value='${p.sku}';document.getElementById('price').value=${p.price}"><div style="font-size:2rem">${p.icon}</div><h3>${p.name}</h3><div class="price-new">${formatRupiah(p.price)}</div></div>`).join('')}</div>
-            <hr><h3>Form Pembelian</h3><form id="buyForm"><div class="form-group"><label>SKU</label><input type="text" id="sku" required></div>
-            <div class="form-group"><label>Nomor Tujuan</label><input type="text" id="customer" required></div><div class="form-group"><label>Harga</label><input type="number" id="price" required></div>
-            <button type="submit" class="btn-success">Beli Sekarang</button></form></div>`;
-            document.getElementById("appRoot").innerHTML = html;
-            document.getElementById("backToDash").onclick = () => renderUserDashboard();
-            document.getElementById("buyForm").onsubmit = async (e) => {
-                e.preventDefault();
-                let price = parseInt(document.getElementById("price").value);
-                if (price > (currentUser.commission || 0)) { alert("Saldo tidak cukup!"); return; }
-                currentUser.commission -= price;
-                await supabaseClient.from('profiles').update({ commission: currentUser.commission }).eq('user_id', currentUser.id);
-                alert("✅ Pembelian berhasil (Demo)");
-                renderMarketplacePage();
-            };
-        }
         
-        function copyReferral() { navigator.clipboard.writeText(window.location.href.split('#')[0] + '?ref=' + currentUser.referralCode); alert("✅ Link referral disalin!"); }
+        function copyReferral() { 
+            navigator.clipboard.writeText(window.location.href.split('#')[0] + '?ref=' + currentUser.referralCode); 
+            alert("Link referral disalin!"); 
+        }
         window.copyReferral = copyReferral;
         
-        // ======================== EARLY BIRD SETTINGS ========================
+        // ======================== EARLY BIRD SETTINGS (ADMIN) ========================
         async function renderEarlyBirdSettings() {
             await loadAppSettings();
-            let html = `<div class="card"><h2>🔥 Pengaturan Early Bird Diskon</h2><form id="earlyBirdForm">
-                <div class="form-group"><label>✅ Aktifkan Early Bird</label><select id="earlyBirdEnabled"><option value="true" ${settings.earlyBirdEnabled ? 'selected' : ''}>Ya (Aktif)</option><option value="false" ${!settings.earlyBirdEnabled ? 'selected' : ''}>Tidak (Nonaktif)</option></select></div>
-                <div class="form-group"><label>📊 Persentase Diskon (%)</label><input type="number" id="earlyBirdDiscount" min="0" max="100" step="1" value="${settings.earlyBirdDiscount}"></div>
-                <div class="form-group"><label>📅 Tanggal Berakhir Early Bird</label><input type="datetime-local" id="earlyBirdEndDate" value="${settings.earlyBirdEndDate.slice(0, 16)}"></div>
-                <div class="form-group"><label>💰 Preview Harga</label><div><p><strong>1 Kursus:</strong> <span style="text-decoration:line-through;">Rp 200.000</span> → <strong>${formatRupiah(getDiscountedPrice(200000))}</strong></p><p><strong>Bundle:</strong> <span style="text-decoration:line-through;">Rp 800.000</span> → <strong>${formatRupiah(getDiscountedPrice(800000))}</strong></p></div></div>
-                <button type="submit" class="btn-success">💾 Simpan</button><button type="button" id="backBtn" class="btn-back">Kembali</button></form></div>
-                <div class="card"><h3>⏰ Countdown Status</h3><div id="earlyBirdStatus"></div></div>`;
+            let html = `<div class="card">
+                <h2>Pengaturan Early Bird Diskon</h2>
+                <form id="earlyBirdForm">
+                    <div class="form-group">
+                        <label>Aktifkan Early Bird</label>
+                        <select id="earlyBirdEnabled">
+                            <option value="true" ${settings.earlyBirdEnabled ? 'selected' : ''}>Ya (Aktif)</option>
+                            <option value="false" ${!settings.earlyBirdEnabled ? 'selected' : ''}>Tidak (Nonaktif)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Persentase Diskon (%)</label>
+                        <input type="number" id="earlyBirdDiscount" min="0" max="100" step="1" value="${settings.earlyBirdDiscount}">
+                    </div>
+                    <div class="form-group">
+                        <label>Tanggal Berakhir Early Bird</label>
+                        <input type="datetime-local" id="earlyBirdEndDate" value="${settings.earlyBirdEndDate.slice(0, 16)}">
+                    </div>
+                    <div class="form-group">
+                        <label>Preview Harga Setelah Diskon</label>
+                        <div style="background: #f0f0f0; padding: 15px; border-radius: 12px;">
+                            <p><strong>1 Kursus:</strong> <span style="text-decoration:line-through;">Rp 200.000</span> → <strong>${formatRupiah(getDiscountedPrice(200000))}</strong></p>
+                            <p><strong>Bundle:</strong> <span style="text-decoration:line-through;">Rp 800.000</span> → <strong>${formatRupiah(getDiscountedPrice(800000))}</strong></p>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn-success">Simpan Pengaturan</button>
+                    <button type="button" id="backBtn" class="btn-back">Kembali</button>
+                </form>
+            </div>
+            <div class="card">
+                <h3>Countdown Status</h3>
+                <div id="earlyBirdStatus" style="padding: 10px; border-radius: 12px;"></div>
+            </div>`;
             document.getElementById("adminContent").innerHTML = html;
+            
             function updateStatus() {
-                let s = document.getElementById("earlyBirdStatus");
-                if (!s) return;
-                let enabled = document.getElementById("earlyBirdEnabled")?.value === "true";
-                let end = new Date(document.getElementById("earlyBirdEndDate")?.value);
+                let statusDiv = document.getElementById("earlyBirdStatus");
+                if (!statusDiv) return;
+                let isEnabled = document.getElementById("earlyBirdEnabled")?.value === "true";
+                let endDate = new Date(document.getElementById("earlyBirdEndDate")?.value);
                 let now = new Date();
-                let diskon = document.getElementById("earlyBirdDiscount")?.value;
-                if (!enabled) s.innerHTML = `<div class="alert-warning">⚠️ Early Bird NONAKTIF</div>`;
-                else if (now > end) s.innerHTML = `<div class="alert-danger">⏰ Early Bird telah BERAKHIR</div>`;
-                else { let diff = end - now; let d = Math.floor(diff / 86400000), h = Math.floor((diff % 86400000) / 3600000), m = Math.floor((diff % 3600000) / 60000), sc = Math.floor((diff % 60000) / 1000);
-                s.innerHTML = `<div class="alert-success">🔥 AKTIF! Diskon ${diskon}% berlaku: ${d}d ${h}h ${m}m ${sc}s lagi!</div>`; }
+                let discount = document.getElementById("earlyBirdDiscount")?.value || 0;
+                if (!isEnabled) {
+                    statusDiv.innerHTML = `<div class="alert-warning">Early Bird NONAKTIF. Harga normal.</div>`;
+                } else if (now > endDate) {
+                    statusDiv.innerHTML = `<div class="alert-danger">Early Bird telah BERAKHIR pada ${endDate.toLocaleString()}.</div>`;
+                } else {
+                    let diff = endDate - now;
+                    let days = Math.floor(diff / 86400000);
+                    let hours = Math.floor((diff % 86400000) / 3600000);
+                    let minutes = Math.floor((diff % 3600000) / 60000);
+                    let seconds = Math.floor((diff % 60000) / 1000);
+                    statusDiv.innerHTML = `<div class="alert-success">Early Bird AKTIF! Diskon ${discount}% berlaku: ${days} hari ${hours} jam ${minutes} menit ${seconds} detik lagi!</div>`;
+                }
             }
-            let int = setInterval(updateStatus, 1000);
+            let interval = setInterval(updateStatus, 1000);
             updateStatus();
-            document.getElementById("backBtn").onclick = () => { clearInterval(int); renderAdminDashboard(); };
+            document.getElementById("backBtn").onclick = () => {
+                clearInterval(interval);
+                renderAdminDashboard();
+            };
             document.getElementById("earlyBirdForm").onsubmit = async (e) => {
                 e.preventDefault();
-                await supabaseClient.from('app_settings').upsert({ key: 'early_bird_enabled', value: String(document.getElementById("earlyBirdEnabled").value === "true") });
-                await supabaseClient.from('app_settings').upsert({ key: 'early_bird_discount', value: document.getElementById("earlyBirdDiscount").value });
-                await supabaseClient.from('app_settings').upsert({ key: 'early_bird_end_date', value: document.getElementById("earlyBirdEndDate").value });
-                settings.earlyBirdEnabled = document.getElementById("earlyBirdEnabled").value === "true";
-                settings.earlyBirdDiscount = parseInt(document.getElementById("earlyBirdDiscount").value);
-                settings.earlyBirdEndDate = document.getElementById("earlyBirdEndDate").value;
-                alert("✅ Disimpan!"); clearInterval(int); renderEarlyBirdSettings();
+                let newEnabled = document.getElementById("earlyBirdEnabled").value === "true";
+                let newDiscount = parseInt(document.getElementById("earlyBirdDiscount").value);
+                let newEndDate = document.getElementById("earlyBirdEndDate").value;
+                await supabaseClient.from('app_settings').upsert({ key: 'early_bird_enabled', value: String(newEnabled) });
+                await supabaseClient.from('app_settings').upsert({ key: 'early_bird_discount', value: String(newDiscount) });
+                await supabaseClient.from('app_settings').upsert({ key: 'early_bird_end_date', value: newEndDate });
+                settings.earlyBirdEnabled = newEnabled;
+                settings.earlyBirdDiscount = newDiscount;
+                settings.earlyBirdEndDate = newEndDate;
+                alert("Pengaturan Early Bird disimpan!");
+                clearInterval(interval);
+                renderEarlyBirdSettings();
             };
         }
         
         // ======================== ADMIN PANEL ========================
         function renderAdminLogin() {
-            let html = `<div class="card"><h2>🔧 Admin Login</h2><form id="adminForm"><div class="form-group"><label>Email</label><input type="email" id="adminEmail"></div>
-            <div class="form-group"><label>Password</label><input type="password" id="adminPass"></div><button type="submit">Login</button>
-            <button onclick="window.location.hash='#landing'" class="btn-outline">Kembali</button></form></div>`;
+            let html = `<div class="card">
+                <h2>Admin Login</h2>
+                <form id="adminForm">
+                    <div class="form-group"><label>Email</label><input type="email" id="adminEmail"></div>
+                    <div class="form-group"><label>Password</label><input type="password" id="adminPass"></div>
+                    <button type="submit">Login</button>
+                    <button onclick="window.location.hash='#landing'" class="btn-outline">Kembali</button>
+                </form>
+            </div>`;
             document.getElementById("appRoot").innerHTML = html;
             document.getElementById("adminForm").onsubmit = async (e) => {
                 e.preventDefault();
-                let email = document.getElementById("adminEmail").value, password = document.getElementById("adminPass").value;
+                let email = document.getElementById("adminEmail").value;
+                let password = document.getElementById("adminPass").value;
                 const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
                 if (error) { alert("Login gagal: " + error.message); return; }
                 currentUser = data.user;
                 await loadUserProfile();
                 await checkAdminStatus();
-                if (isAdmin) { window.location.hash = "#admin-dashboard"; } 
-                else { alert("Akun Anda bukan admin."); await supabaseClient.auth.signOut(); }
+                if (isAdmin) { 
+                    window.location.hash = "#admin-dashboard"; 
+                } else { 
+                    alert("Akun Anda bukan admin."); 
+                    await supabaseClient.auth.signOut(); 
+                }
             };
         }
         
         async function renderAdminDashboard() {
             const { data: pendingUsers } = await supabaseClient.from('profiles').select('*').eq('status', 'pending');
             const pendingWithdraws = withdrawRequests.filter(w => w.status === 'pending');
-            let html = `<div class="tabs"><div class="tab" id="logoutAdmin">🚪 Logout</div><div class="tab active">🔧 Admin Panel</div>
-                <div class="tab" id="generalSettingsTab">⚙️ Pengaturan</div>
-                <div class="tab" id="editCourseJsonTab">📋 Edit Kursus (JSON)</div>
-                <div class="tab" id="editCourseUITab">✏️ Edit Kursus (UI Form)</div>
-                <div class="tab" id="promoTab">🏷️ Diskon</div>
-                <div class="tab" id="salesReportTab">📊 Laporan Penjualan</div>
-                <div class="tab" id="financialTab">📈 Laporan Keuangan & Pajak</div>
-                <div class="tab" id="practicalTab">📝 Nilai Praktik</div>
-                <div class="tab" id="studentMgmtTab">👥 Manajemen Peserta</div>
-                <div class="tab" id="certSettingsTab">🎓 Sertifikat</div>
-                <div class="tab" id="earlyBirdTab">🔥 Early Bird</div></div>
-                <div id="adminContent"><div class="card"><h2>📋 Pendaftaran Menunggu (${pendingUsers?.length || 0})</h2>${(pendingUsers || []).map(u => `<div style="border-bottom:1px solid #eee; padding:10px;"><strong>${u.full_name}</strong> (${u.email})<br>📞 ${u.phone || '-'}<br>📚 ${u.is_bundle ? 'Bundle (Semua Kursus)' : (coursesData.find(c => c.id === u.selected_course)?.title || 'Belum pilih')}<br>💰 Pembayaran: ${formatRupiah(u.price_paid || 0)}<br><button class="btn-approve" data-user="${u.user_id}" style="background:#27ae60;">✅ Setujui</button> <button class="btn-add-balance" data-user="${u.user_id}" data-name="${escapeHtml(u.full_name)}" style="background:#3498db;">💰 Tambah Saldo</button> <button class="btn-reject" data-user="${u.user_id}" style="background:#e74c3c;">❌ Tolak</button></div>`).join('') || '<p>Tidak ada pendaftaran pending.</p>'}</div>
-                <div class="card"><h2>💰 Request Withdraw (${pendingWithdraws.length})</h2>${pendingWithdraws.map(w => `<div style="border-bottom:1px solid #eee; padding:10px;"><strong>${w.user_name || w.user_id}</strong> - ${formatRupiah(w.amount)}<br><button class="approve-withdraw" data-id="${w.id}" style="background:#27ae60;">✅ Setujui</button> <button class="reject-withdraw" data-id="${w.id}" style="background:#e74c3c;">❌ Tolak</button></div>`).join('') || '<p>Tidak ada request withdraw.</p>'}</div></div>
-                <button id="backBtn" class="btn-back">Kembali ke Beranda</button>`;
+            
+            let html = `<div class="tabs">
+                <div class="tab" id="logoutAdmin">Logout</div>
+                <div class="tab active">Admin Panel</div>
+                <div class="tab" id="editCourseUITab">Edit Kursus (UI Form)</div>
+                <div class="tab" id="studentMgmtTab">Manajemen Peserta</div>
+                <div class="tab" id="earlyBirdTab">Early Bird</div>
+            </div>
+            <div id="adminContent">
+                <div class="card">
+                    <h2>Pendaftaran Menunggu (${pendingUsers?.length || 0})</h2>
+                    ${(pendingUsers || []).map(u => `<div style="border-bottom:1px solid #eee; padding:10px;">
+                        <strong>${u.full_name}</strong> (${u.email})<br>
+                        Paket: ${u.is_bundle ? 'Bundle' : (coursesData.find(c => c.id === u.selected_course)?.title || '-')}<br>
+                        <button class="btn-approve" data-user="${u.user_id}" style="background:#27ae60;">Setujui</button>
+                        <button class="btn-reject" data-user="${u.user_id}" style="background:#e74c3c;">Tolak</button>
+                    </div>`).join('') || '<p>Tidak ada pendaftaran pending.</p>'}
+                </div>
+                <div class="card">
+                    <h2>Request Withdraw (${pendingWithdraws.length})</h2>
+                    ${pendingWithdraws.map(w => `<div style="border-bottom:1px solid #eee; padding:10px;">
+                        <strong>${w.user_name || w.user_id}</strong> - ${formatRupiah(w.amount)}<br>
+                        <button class="approve-withdraw" data-id="${w.id}" style="background:#27ae60;">Setujui</button>
+                        <button class="reject-withdraw" data-id="${w.id}" style="background:#e74c3c;">Tolak</button>
+                    </div>`).join('') || '<p>Tidak ada request withdraw.</p>'}
+                </div>
+            </div>
+            <button id="backBtn" class="btn-back">Kembali ke Beranda</button>`;
             document.getElementById("appRoot").innerHTML = html;
-            document.getElementById("logoutAdmin").onclick = async () => { await supabaseClient.auth.signOut(); window.location.hash = "#landing"; };
+            
+            document.getElementById("logoutAdmin").onclick = async () => { 
+                await supabaseClient.auth.signOut(); 
+                window.location.hash = "#landing";
+            };
             document.getElementById("backBtn").onclick = () => window.location.hash = "#landing";
-            document.getElementById("generalSettingsTab").onclick = () => renderGeneralSettings();
-            document.getElementById("editCourseJsonTab").onclick = () => renderEditCourseJson();
             document.getElementById("editCourseUITab").onclick = () => renderCourseUIEditor();
-            document.getElementById("promoTab").onclick = () => renderPromoManager();
-            document.getElementById("salesReportTab").onclick = () => renderSalesReport();
-            document.getElementById("financialTab").onclick = () => renderFinancialReport();
-            document.getElementById("practicalTab").onclick = () => renderAdminPracticalExams();
             document.getElementById("studentMgmtTab").onclick = () => renderStudentDashboard();
-            document.getElementById("certSettingsTab").onclick = () => renderCertificateSettings();
             document.getElementById("earlyBirdTab").onclick = () => renderEarlyBirdSettings();
             
-            document.querySelectorAll(".btn-approve").forEach(btn => { btn.onclick = async () => { await supabaseClient.from('profiles').update({ status: 'approved' }).eq('user_id', btn.getAttribute("data-user")); alert("✅ User disetujui!"); renderAdminDashboard(); }; });
-            document.querySelectorAll(".btn-reject").forEach(btn => { btn.onclick = async () => { if(confirm("Tolak pendaftaran user ini?")) { await supabaseClient.from('profiles').delete().eq('user_id', btn.getAttribute("data-user")); alert("❌ User ditolak!"); renderAdminDashboard(); } }; });
-            document.querySelectorAll(".btn-add-balance").forEach(btn => { btn.onclick = async () => { let amt = prompt(`Tambah saldo untuk ${btn.getAttribute("data-name")}:`, "100000"); if(amt) { let amount = parseInt(amt); let { data: profile } = await supabaseClient.from('profiles').select('commission').eq('user_id', btn.getAttribute("data-user")).single(); let newBalance = (profile?.commission || 0) + amount; await supabaseClient.from('profiles').update({ commission: newBalance }).eq('user_id', btn.getAttribute("data-user")); alert(`✅ Top up ${formatRupiah(amount)} berhasil!`); renderAdminDashboard(); } }; });
-            document.querySelectorAll(".approve-withdraw").forEach(btn => { btn.onclick = async () => { await approveWithdraw(btn.getAttribute("data-id")); renderAdminDashboard(); }; });
-            document.querySelectorAll(".reject-withdraw").forEach(btn => { btn.onclick = async () => { await rejectWithdraw(btn.getAttribute("data-id")); renderAdminDashboard(); }; });
-        }
-        
-        async function renderGeneralSettings() {
-            await loadAppSettings();
-            let html = `<div class="card"><h2>⚙️ Pengaturan Umum</h2><form id="generalSettingsForm">
-                <div class="form-group"><label>📞 Nomor WhatsApp Admin</label><input type="text" id="whatsappNumber" value="${settings.defaultWhatsappNumber}"></div>
-                <div class="form-group"><label>📱 Pesan WhatsApp Default</label><textarea id="whatsappMessage" rows="3">${settings.defaultWhatsappMessage}</textarea></div>
-                <button type="submit" class="btn-success">💾 Simpan</button>
-                <button type="button" id="backBtn" class="btn-back">Kembali</button></form></div>`;
-            document.getElementById("adminContent").innerHTML = html;
-            document.getElementById("backBtn").onclick = () => renderAdminDashboard();
-            document.getElementById("generalSettingsForm").onsubmit = async (e) => {
-                e.preventDefault();
-                await supabaseClient.from('app_settings').upsert({ key: 'default_whatsapp_number', value: document.getElementById("whatsappNumber").value });
-                await supabaseClient.from('app_settings').upsert({ key: 'default_whatsapp_message', value: document.getElementById("whatsappMessage").value });
-                settings.defaultWhatsappNumber = document.getElementById("whatsappNumber").value;
-                settings.defaultWhatsappMessage = document.getElementById("whatsappMessage").value;
-                alert("✅ Pengaturan disimpan!");
-                renderGeneralSettings();
-            };
-        }
-        
-        async function renderEditCourseJson() {
-            let html = `<div class="card"><h2>📁 Edit Kursus via JSON</h2><div class="course-grid">${coursesData.map(c => `<div class="course-card"><div class="course-icon">${c.icon}</div><div class="course-title">${c.title}</div><button class="edit-json-btn" data-id="${c.id}" style="background:#3498db;">📋 Edit JSON</button><button class="download-json-btn" data-id="${c.id}" style="background:#27ae60;">📥 Download JSON</button></div>`).join('')}</div><button id="backBtn" class="btn-back">Kembali</button></div>`;
-            document.getElementById("adminContent").innerHTML = html;
-            document.getElementById("backBtn").onclick = () => renderAdminDashboard();
-            document.querySelectorAll(".edit-json-btn").forEach(btn => { btn.onclick = async () => { let c = coursesData.find(c => c.id == btn.getAttribute("data-id")); let j = prompt("Edit JSON kursus:", JSON.stringify(c, null, 2)); if(j) { try { let p = JSON.parse(j); await saveCourse(p); alert("✅ Kursus disimpan!"); renderEditCourseJson(); } catch(e) { alert("JSON tidak valid: " + e.message); } } }; });
-            document.querySelectorAll(".download-json-btn").forEach(btn => { btn.onclick = () => { let c = coursesData.find(c => c.id == btn.getAttribute("data-id")); let d = JSON.stringify(c, null, 2); let b = new Blob([d], {type:"application/json"}); let a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = `course_${c.id}.json`; a.click(); URL.revokeObjectURL(a.href); }; });
+            document.querySelectorAll(".btn-approve").forEach(btn => { btn.onclick = async () => { 
+                await supabaseClient.from('profiles').update({ status: 'approved' }).eq('user_id', btn.getAttribute("data-user")); 
+                alert("User disetujui!"); 
+                renderAdminDashboard(); 
+            }; });
+            document.querySelectorAll(".btn-reject").forEach(btn => { btn.onclick = async () => { 
+                if(confirm("Tolak pendaftaran user ini?")) { 
+                    await supabaseClient.from('profiles').delete().eq('user_id', btn.getAttribute("data-user")); 
+                    alert("User ditolak!"); 
+                    renderAdminDashboard(); 
+                } 
+            }; });
+            document.querySelectorAll(".approve-withdraw").forEach(btn => { btn.onclick = async () => { 
+                await approveWithdraw(btn.getAttribute("data-id")); 
+                renderAdminDashboard(); 
+            }; });
+            document.querySelectorAll(".reject-withdraw").forEach(btn => { btn.onclick = async () => { 
+                await rejectWithdraw(btn.getAttribute("data-id")); 
+                renderAdminDashboard(); 
+            }; });
         }
         
         async function renderCourseUIEditor() {
             await loadCourses();
-            let html = `<div class="card"><h2>📚 Edit Kursus via UI Form</h2><div class="course-grid">${coursesData.map(course => `<div class="course-card"><div class="course-icon">${course.icon}</div><div class="course-title">${course.title}</div><button class="edit-course-info" data-id="${course.id}" style="background:#27ae60;">✏️ Edit Info & Grup</button><button class="edit-lessons" data-id="${course.id}" style="background:#3498db;">📝 Edit Materi</button></div>`).join('')}</div><button id="backBtn" class="btn-back">Kembali</button></div>`;
+            let html = `<div class="card">
+                <h2>Edit Kursus via UI Form</h2>
+                <div class="course-grid">
+                    ${coursesData.map(course => `<div class="course-card">
+                        <div class="course-icon">${course.icon || 'book'}</div>
+                        <div class="course-title">${course.title}</div>
+                        <button class="edit-course-info" data-id="${course.id}" style="background:#27ae60;">Edit Info & Grup</button>
+                        <button class="edit-lessons" data-id="${course.id}" style="background:#3498db;">Edit Materi</button>
+                    </div>`).join('')}
+                </div>
+                <button id="backBtn" class="btn-back">Kembali</button>
+            </div>`;
             document.getElementById("adminContent").innerHTML = html;
             document.getElementById("backBtn").onclick = () => renderAdminDashboard();
-            document.querySelectorAll(".edit-course-info").forEach(btn => { btn.onclick = () => { editingCourseId = btn.getAttribute("data-id"); renderEditCourseInfo(); }; });
-            document.querySelectorAll(".edit-lessons").forEach(btn => { btn.onclick = () => { editingCourseId = btn.getAttribute("data-id"); renderLessonsManager(); }; });
+            document.querySelectorAll(".edit-course-info").forEach(btn => { btn.onclick = () => { 
+                editingCourseId = btn.getAttribute("data-id"); 
+                renderEditCourseInfo(); 
+            }; });
+            document.querySelectorAll(".edit-lessons").forEach(btn => { btn.onclick = () => { 
+                editingCourseId = btn.getAttribute("data-id"); 
+                renderLessonsManager(); 
+            }; });
         }
         
         async function renderEditCourseInfo() {
             let course = coursesData.find(c => c.id == editingCourseId);
             if (!course) return;
-            let html = `<div class="card"><h2>✏️ Edit Info & Grup Telegram: ${course.title}</h2>
-            <form id="editCourseInfoForm">
-                <div class="form-group"><label>🏷️ Icon (emoji)</label><input type="text" id="courseIcon" value="${course.icon || '📚'}"></div>
-                <div class="form-group"><label>📖 Judul</label><input type="text" id="courseTitle" value="${course.title.replace(/"/g, '&quot;')}" required></div>
-                <div class="form-group"><label>📝 Deskripsi</label><textarea id="courseDesc" rows="3">${course.description || ''}</textarea></div>
-                <div class="form-group"><label>💰 Harga</label><input type="number" id="coursePrice" value="${course.price || 200000}"></div>
-                <hr><h3>💬 Pengaturan Grup Telegram</h3>
-                <div class="form-group"><label>🔗 Link Grup Diskusi & Tugas</label><input type="text" id="telegramGroup" value="${course.telegram_group || ''}" placeholder="https://t.me/nama_grup_diskusi"></div>
-                <div class="form-group"><label>🔗 Link Channel Telegram (Materi/Pengumuman)</label><input type="text" id="telegramLink" value="${course.telegram_link || ''}" placeholder="https://t.me/nama_channel"></div>
-                <button type="submit" class="btn-success">💾 Simpan</button>
-                <button type="button" id="backBtn" class="btn-back">Kembali</button>
-            </form></div>`;
+            let html = `<div class="card">
+                <h2>Edit Info & Grup Telegram: ${course.title}</h2>
+                <form id="editCourseInfoForm">
+                    <div class="form-group"><label>Icon (emoji)</label><input type="text" id="courseIcon" value="${course.icon || 'book'}"></div>
+                    <div class="form-group"><label>Judul</label><input type="text" id="courseTitle" value="${course.title}" required></div>
+                    <div class="form-group"><label>Deskripsi</label><textarea id="courseDesc" rows="3">${course.description || ''}</textarea></div>
+                    <div class="form-group"><label>Harga</label><input type="number" id="coursePrice" value="${course.price || 200000}"></div>
+                    <hr>
+                    <h3>Pengaturan Grup Telegram</h3>
+                    <div class="form-group"><label>Link Grup Diskusi & Tugas</label><input type="text" id="telegramGroup" value="${course.telegram_group || ''}" placeholder="https://t.me/nama_grup"></div>
+                    <button type="submit" class="btn-success">Simpan</button>
+                    <button type="button" id="backBtn" class="btn-back">Kembali</button>
+                </form>
+            </div>`;
             document.getElementById("adminContent").innerHTML = html;
             document.getElementById("backBtn").onclick = () => renderCourseUIEditor();
             document.getElementById("editCourseInfoForm").onsubmit = async (e) => {
@@ -1045,9 +1103,8 @@
                 course.desc = document.getElementById("courseDesc").value;
                 course.price = parseInt(document.getElementById("coursePrice").value);
                 course.telegram_group = document.getElementById("telegramGroup").value;
-                course.telegram_link = document.getElementById("telegramLink").value;
                 await saveCourse(course);
-                alert("✅ Info kursus dan grup Telegram disimpan!");
+                alert("Info kursus dan grup Telegram disimpan!");
                 renderCourseUIEditor();
             };
         }
@@ -1055,37 +1112,62 @@
         async function renderLessonsManager() {
             let course = coursesData.find(c => c.id == editingCourseId);
             if (!course) return;
-            let html = `<div class="card"><h2>📝 Materi: ${course.title}</h2>
-            <div class="lesson-list">${(course.lessons || []).map((lesson, idx) => `<div class="lesson-item" data-idx="${idx}"><div><strong>${idx+1}. ${lesson.title}</strong><br><small>🎬 ${lesson.videoUrl ? '✅' : '❌'} | 📖 ${lesson.mufradat?.length || 0} kosakata | 💬 ${lesson.dialogs?.length || 0} dialog | 📝 ${lesson.quiz?.length || 0} soal</small></div>
-            <div><button class="edit-lesson" data-idx="${idx}" style="background:#3498db;">✏️ Edit</button><button class="delete-lesson" data-idx="${idx}" style="background:#e74c3c;">🗑 Hapus</button></div></div>`).join('')}
-            ${(course.lessons || []).length === 0 ? '<p>Belum ada materi.</p>' : ''}</div>
-            <div class="admin-menu"><button id="addLessonBtn" class="btn-success">+ Tambah Materi</button><button id="backBtn" class="btn-back">Kembali</button></div></div>`;
+            let html = `<div class="card">
+                <h2>Materi: ${course.title}</h2>
+                <div class="lesson-list">
+                    ${(course.lessons || []).map((lesson, idx) => `<div class="lesson-item" data-idx="${idx}">
+                        <div><strong>${idx+1}. ${lesson.title}</strong></div>
+                        <div><button class="edit-lesson" data-idx="${idx}" style="background:#3498db;">Edit</button>
+                        <button class="delete-lesson" data-idx="${idx}" style="background:#e74c3c;">Hapus</button></div>
+                    </div>`).join('')}
+                </div>
+                <div class="admin-menu">
+                    <button id="addLessonBtn" class="btn-success">+ Tambah Materi</button>
+                    <button id="backBtn" class="btn-back">Kembali</button>
+                </div>
+            </div>`;
             document.getElementById("adminContent").innerHTML = html;
             document.getElementById("backBtn").onclick = () => renderCourseUIEditor();
             document.getElementById("addLessonBtn").onclick = () => renderAddLessonForm();
-            document.querySelectorAll(".edit-lesson").forEach(btn => { btn.onclick = () => { editingLessonIndex = parseInt(btn.getAttribute("data-idx")); renderEditLessonForm(); }; });
-            document.querySelectorAll(".delete-lesson").forEach(btn => { btn.onclick = async () => { let idx = parseInt(btn.getAttribute("data-idx")); if(confirm(`Hapus materi "${course.lessons[idx].title}"?`)) { course.lessons.splice(idx, 1); course.lessons.forEach((l, i) => l.number = i + 1); await saveCourse(course); renderLessonsManager(); } }; });
+            document.querySelectorAll(".edit-lesson").forEach(btn => { btn.onclick = () => { 
+                editingLessonIndex = parseInt(btn.getAttribute("data-idx")); 
+                renderEditLessonForm(); 
+            }; });
+            document.querySelectorAll(".delete-lesson").forEach(btn => { btn.onclick = async () => { 
+                let idx = parseInt(btn.getAttribute("data-idx")); 
+                if(confirm(`Hapus materi "${course.lessons[idx].title}"?`)) { 
+                    course.lessons.splice(idx, 1); 
+                    await saveCourse(course); 
+                    renderLessonsManager(); 
+                } 
+            }; });
         }
         
         async function renderAddLessonForm() {
             let course = coursesData.find(c => c.id == editingCourseId);
             let newNumber = (course.lessons || []).length + 1;
-            let html = `<div class="card"><h2>➕ Tambah Materi Baru</h2>
-            <form id="addLessonForm">
-                <div class="form-group"><label>📝 Judul Materi</label><input type="text" id="lessonTitle" placeholder="Pertemuan ${newNumber}: ..." required></div>
-                <div class="form-group"><label>🎬 URL Video</label><input type="text" id="videoUrl" placeholder="https://www.youtube.com/embed/..."></div>
-                <div class="form-group"><label>📝 Butuh Praktik?</label><select id="practicalExam"><option value="false">Tidak</option><option value="true">Ya</option></select></div>
-                <button type="submit" class="btn-success">➕ Tambah</button>
-                <button type="button" id="backBtn" class="btn-back">Kembali</button>
-            </form></div>`;
+            let html = `<div class="card">
+                <h2>Tambah Materi Baru</h2>
+                <form id="addLessonForm">
+                    <div class="form-group"><label>Judul Materi</label><input type="text" id="lessonTitle" placeholder="Pertemuan ${newNumber}: ..." required></div>
+                    <div class="form-group"><label>URL Video</label><input type="text" id="videoUrl" placeholder="https://www.youtube.com/embed/..."></div>
+                    <button type="submit" class="btn-success">Tambah</button>
+                    <button type="button" id="backBtn" class="btn-back">Kembali</button>
+                </form>
+            </div>`;
             document.getElementById("adminContent").innerHTML = html;
             document.getElementById("backBtn").onclick = () => renderLessonsManager();
             document.getElementById("addLessonForm").onsubmit = async (e) => {
                 e.preventDefault();
-                let newLesson = { number: newNumber, title: document.getElementById("lessonTitle").value, videoUrl: document.getElementById("videoUrl").value, mufradat: [], dialogs: [], quiz: Array(10).fill().map((_, idx) => ({ q: `Soal ${idx+1}`, opt: ["A","B","C","D"], jawab: 0 })), practicalExam: document.getElementById("practicalExam").value === "true" };
+                let newLesson = { 
+                    number: newNumber, 
+                    title: document.getElementById("lessonTitle").value, 
+                    videoUrl: document.getElementById("videoUrl").value,
+                    quiz: [{ q: "Contoh soal?", opt: ["A", "B", "C", "D"], jawab: 0 }]
+                };
                 course.lessons.push(newLesson);
                 await saveCourse(course);
-                alert(`✅ Materi "${newLesson.title}" ditambahkan!`);
+                alert(`Materi "${newLesson.title}" ditambahkan!`);
                 renderLessonsManager();
             };
         }
@@ -1093,260 +1175,66 @@
         async function renderEditLessonForm() {
             let course = coursesData.find(c => c.id == editingCourseId);
             let lesson = course.lessons[editingLessonIndex];
-            let html = `<div class="card"><h2>✏️ Edit Materi: ${lesson.title}</h2>
-            <form id="editLessonForm">
-                <div class="form-group"><label>📝 Judul</label><input type="text" id="lessonTitle" value="${lesson.title.replace(/"/g, '&quot;')}" required></div>
-                <div class="form-group"><label>🎬 URL Video</label><input type="text" id="videoUrl" value="${lesson.videoUrl || ''}"></div>
-                <div class="form-group"><label>📝 Butuh Praktik?</label><select id="practicalExam"><option value="false" ${!lesson.practicalExam ? 'selected' : ''}>Tidak</option><option value="true" ${lesson.practicalExam ? 'selected' : ''}>Ya</option></select></div>
-                <div class="admin-menu"><button type="submit" class="btn-success">💾 Simpan</button><button id="mufradatBtn" class="btn-edit">📖 Edit Kosakata</button><button id="dialogBtn" class="btn-edit">💬 Edit Dialog</button><button id="quizBtn" class="btn-edit">📝 Edit Quiz</button><button id="backBtn" class="btn-back">Kembali</button></div>
-            </form></div>`;
+            let html = `<div class="card">
+                <h2>Edit Materi: ${lesson.title}</h2>
+                <form id="editLessonForm">
+                    <div class="form-group"><label>Judul</label><input type="text" id="lessonTitle" value="${lesson.title}" required></div>
+                    <div class="form-group"><label>URL Video</label><input type="text" id="videoUrl" value="${lesson.videoUrl || ''}"></div>
+                    <button type="submit" class="btn-success">Simpan</button>
+                    <button type="button" id="backBtn" class="btn-back">Kembali</button>
+                </form>
+            </div>`;
             document.getElementById("adminContent").innerHTML = html;
             document.getElementById("backBtn").onclick = () => renderLessonsManager();
             document.getElementById("editLessonForm").onsubmit = async (e) => {
                 e.preventDefault();
                 lesson.title = document.getElementById("lessonTitle").value;
                 lesson.videoUrl = document.getElementById("videoUrl").value;
-                lesson.practicalExam = document.getElementById("practicalExam").value === "true";
                 await saveCourse(course);
-                alert("✅ Materi disimpan!");
+                alert("Materi disimpan!");
                 renderEditLessonForm();
             };
-            document.getElementById("mufradatBtn").onclick = () => renderMufradatEditor();
-            document.getElementById("dialogBtn").onclick = () => renderDialogEditor();
-            document.getElementById("quizBtn").onclick = () => renderQuizEditor();
-        }
-        
-        async function renderMufradatEditor() {
-            let course = coursesData.find(c => c.id == editingCourseId);
-            let lesson = course.lessons[editingLessonIndex];
-            let html = `<div class="card"><h2>📖 Edit Kosakata</h2>
-            <table class="mufradat-table"><thead>运转<th>Arab</th><th>Latin</th><th>Arti</th><th>Aksi</th></tr></thead><tbody id="mufradatBody">${(lesson.mufradat || []).map((m, idx) => `<tr data-idx="${idx}"><td><input type="text" id="arab_${idx}" value="${m.arab}" style="width:100%;">ER20</div></td>}<input type="text" id="latin_${idx}" value="${m.latin}" style="width:100%;">ER20</div></td>}<input type="text" id="arti_${idx}" value="${m.arti}" style="width:100%;">ER20</div></td>}<button class="delete-mufradat" data-idx="${idx}" style="background:#e74c3c;">🗑</button>ER20</div></tr>`).join('')}</tbody></table>
-            <div class="admin-menu"><button id="addMufradatBtn" class="btn-edit">+ Tambah</button><button id="saveMufradatBtn" class="btn-success">💾 Simpan</button><button id="backBtn" class="btn-back">Kembali</button></div></div>`;
-            document.getElementById("adminContent").innerHTML = html;
-            document.getElementById("backBtn").onclick = () => renderEditLessonForm();
-            document.getElementById("addMufradatBtn").onclick = () => { lesson.mufradat.push({ arab: "كَلِمَة", latin: "kalimat", arti: "Kata" }); renderMufradatEditor(); };
-            document.getElementById("saveMufradatBtn").onclick = async () => {
-                let newMufradat = [];
-                for(let i = 0; i < (lesson.mufradat || []).length; i++) {
-                    let arab = document.getElementById(`arab_${i}`)?.value, latin = document.getElementById(`latin_${i}`)?.value, arti = document.getElementById(`arti_${i}`)?.value;
-                    if(arab && latin && arti) newMufradat.push({ arab, latin, arti });
-                }
-                lesson.mufradat = newMufradat;
-                await saveCourse(course);
-                alert("✅ Kosakata disimpan!");
-                renderMufradatEditor();
-            };
-            document.querySelectorAll(".delete-mufradat").forEach(btn => { btn.onclick = () => { lesson.mufradat.splice(parseInt(btn.getAttribute("data-idx")), 1); renderMufradatEditor(); }; });
-        }
-        
-        async function renderDialogEditor() {
-            let course = coursesData.find(c => c.id == editingCourseId);
-            let lesson = course.lessons[editingLessonIndex];
-            let html = `<div class="card"><h2>💬 Edit Dialog</h2>
-            <div id="dialogsList">${(lesson.dialogs || []).map((d, idx) => `<div class="admin-edit-item" data-idx="${idx}"><div class="form-group"><label>Dialog ${idx+1} (Arab)</label><textarea id="dialog_${idx}" rows="4" style="width:100%;">${d.text}</textarea></div>
-            <div class="form-group"><label>Terjemahan</label><textarea id="translation_${idx}" rows="2" style="width:100%;">${d.translation || ''}</textarea></div>
-            <button class="delete-dialog" data-idx="${idx}" style="background:#e74c3c;">🗑</button><hr></div>`).join('')}</div>
-            <div class="admin-menu"><button id="addDialogBtn" class="btn-edit">+ Tambah</button><button id="saveDialogsBtn" class="btn-success">💾 Simpan</button><button id="backBtn" class="btn-back">Kembali</button></div></div>`;
-            document.getElementById("adminContent").innerHTML = html;
-            document.getElementById("backBtn").onclick = () => renderEditLessonForm();
-            document.getElementById("addDialogBtn").onclick = () => { lesson.dialogs.push({ text: "Dialog baru\nA: ...\nB: ...", translation: "" }); renderDialogEditor(); };
-            document.getElementById("saveDialogsBtn").onclick = async () => {
-                let newDialogs = [];
-                for(let i = 0; i < (lesson.dialogs || []).length; i++) {
-                    let text = document.getElementById(`dialog_${i}`)?.value, translation = document.getElementById(`translation_${i}`)?.value;
-                    if(text) newDialogs.push({ text, translation });
-                }
-                lesson.dialogs = newDialogs;
-                await saveCourse(course);
-                alert("✅ Dialog disimpan!");
-                renderDialogEditor();
-            };
-            document.querySelectorAll(".delete-dialog").forEach(btn => { btn.onclick = () => { lesson.dialogs.splice(parseInt(btn.getAttribute("data-idx")), 1); renderDialogEditor(); }; });
-        }
-        
-        async function renderQuizEditor() {
-            let course = coursesData.find(c => c.id == editingCourseId);
-            let lesson = course.lessons[editingLessonIndex];
-            let html = `<div class="card"><h2>📝 Edit Quiz (10 Soal)</h2><p>⚠️ Quiz wajib 10 soal.</p>
-            <div id="quizList">${(lesson.quiz || []).map((q, idx) => `<div style="border:1px solid #ddd; border-radius:16px; padding:15px; margin-bottom:15px;"><h4>Soal ${idx+1}</h4>
-            <div class="form-group"><label>Pertanyaan</label><input type="text" id="q_${idx}" value="${q.q.replace(/"/g, '&quot;')}" style="width:100%;"></div>
-            <div class="form-group"><label>A</label><input type="text" id="a_${idx}" value="${q.opt[0]}" style="width:100%;"></div>
-            <div class="form-group"><label>B</label><input type="text" id="b_${idx}" value="${q.opt[1]}" style="width:100%;"></div>
-            <div class="form-group"><label>C</label><input type="text" id="c_${idx}" value="${q.opt[2]}" style="width:100%;"></div>
-            <div class="form-group"><label>D</label><input type="text" id="d_${idx}" value="${q.opt[3]}" style="width:100%;"></div>
-            <div class="form-group"><label>Jawaban (0=A,1=B,2=C,3=D)</label><input type="number" id="jawab_${idx}" value="${q.jawab}" min="0" max="3"></div></div>`).join('')}</div>
-            <div class="admin-menu"><button id="saveQuizBtn" class="btn-success">💾 Simpan</button><button id="backBtn" class="btn-back">Kembali</button></div></div>`;
-            document.getElementById("adminContent").innerHTML = html;
-            document.getElementById("backBtn").onclick = () => renderEditLessonForm();
-            document.getElementById("saveQuizBtn").onclick = async () => {
-                let newQuiz = [];
-                for(let i = 0; i < 10; i++) {
-                    let q = document.getElementById(`q_${i}`)?.value, a = document.getElementById(`a_${i}`)?.value || "A", b = document.getElementById(`b_${i}`)?.value || "B", c = document.getElementById(`c_${i}`)?.value || "C", d = document.getElementById(`d_${i}`)?.value || "D", jawab = parseInt(document.getElementById(`jawab_${i}`)?.value || 0);
-                    if(q) newQuiz.push({ q, opt: [a, b, c, d], jawab });
-                }
-                while(newQuiz.length < 10) newQuiz.push({ q: `Soal ${newQuiz.length+1}`, opt: ["A","B","C","D"], jawab: 0 });
-                lesson.quiz = newQuiz.slice(0, 10);
-                await saveCourse(course);
-                alert("✅ Quiz disimpan!");
-                renderQuizEditor();
-            };
-        }
-        
-        async function renderPromoManager() {
-            await loadPromoData();
-            let html = `<div class="card"><h2>🏷️ Manajemen Diskon</h2><button id="addPromoBtn" class="btn-success">+ Tambah</button>
-            <div id="promoList">${promoData.map(p => `<div style="border-bottom:1px solid #eee; padding:10px;"><strong>${p.code}</strong> - ${p.discount_percent}% | ${p.is_active ? '✅ Aktif' : '⏸ Nonaktif'}<br><button class="edit-promo" data-id="${p.id}" data-code="${p.code}" data-discount="${p.discount_percent}" data-active="${p.is_active}" class="btn-edit">✏️ Edit</button><button class="delete-promo" data-id="${p.id}" style="background:#e74c3c;">🗑 Hapus</button></div>`).join('') || '<p>Belum ada kode promo.</p>'}</div>
-            <button id="backBtn" class="btn-back">Kembali</button></div>`;
-            document.getElementById("adminContent").innerHTML = html;
-            document.getElementById("backBtn").onclick = () => renderAdminDashboard();
-            document.getElementById("addPromoBtn").onclick = () => renderAddPromoForm();
-            document.querySelectorAll(".edit-promo").forEach(btn => { btn.onclick = () => renderEditPromoForm(btn.dataset.id, btn.dataset.code, btn.dataset.discount, btn.dataset.active === 'true'); });
-            document.querySelectorAll(".delete-promo").forEach(btn => { btn.onclick = async () => { if(confirm("Hapus promo?")) { await deletePromoCode(btn.dataset.id); renderPromoManager(); } }; });
-        }
-        
-        function renderAddPromoForm() {
-            let html = `<div class="card"><h2>➕ Tambah Diskon</h2><form id="promoForm"><div class="form-group"><label>Kode</label><input type="text" id="code" required></div>
-            <div class="form-group"><label>Diskon (%)</label><input type="number" id="discount" min="0" max="100" required></div>
-            <button type="submit" class="btn-success">💾 Simpan</button><button type="button" id="backBtn" class="btn-back">Kembali</button></form></div>`;
-            document.getElementById("adminContent").innerHTML = html;
-            document.getElementById("backBtn").onclick = () => renderPromoManager();
-            document.getElementById("promoForm").onsubmit = async (e) => {
-                e.preventDefault();
-                await savePromoCode({ code: document.getElementById("code").value.toUpperCase(), discount_percent: parseInt(document.getElementById("discount").value), is_active: true });
-                alert("✅ Diskon ditambahkan!");
-                renderPromoManager();
-            };
-        }
-        
-        function renderEditPromoForm(id, code, discount, isActive) {
-            let html = `<div class="card"><h2>✏️ Edit Diskon</h2><form id="promoForm"><div class="form-group"><label>Kode</label><input type="text" id="code" value="${code}" required></div>
-            <div class="form-group"><label>Diskon (%)</label><input type="number" id="discount" value="${discount}" min="0" max="100" required></div>
-            <div class="checkbox-group"><input type="checkbox" id="isActive" ${isActive ? 'checked' : ''}> <label>Aktif</label></div>
-            <button type="submit" class="btn-success">💾 Simpan</button><button type="button" id="backBtn" class="btn-back">Kembali</button></form></div>`;
-            document.getElementById("adminContent").innerHTML = html;
-            document.getElementById("backBtn").onclick = () => renderPromoManager();
-            document.getElementById("promoForm").onsubmit = async (e) => {
-                e.preventDefault();
-                await supabaseClient.from('promo_codes').update({ code: document.getElementById("code").value.toUpperCase(), discount_percent: parseInt(document.getElementById("discount").value), is_active: document.getElementById("isActive").checked }).eq('id', id);
-                alert("✅ Diskon diupdate!");
-                renderPromoManager();
-            };
-        }
-        
-        async function renderSalesReport() {
-            let { data: profiles } = await supabaseClient.from('profiles').select('*').eq('status', 'approved');
-            let total = (profiles || []).reduce((s, p) => s + (p.price_paid || 0), 0);
-            let html = `<div class="card"><h2>📊 Laporan Penjualan</h2><div class="price-card"><h3>Total Pendapatan</h3><div class="price-new">${formatRupiah(total)}</div></div>
-            <button id="exportBtn" class="btn-success">📥 Export CSV</button><button id="backBtn" class="btn-back">Kembali</button></div>`;
-            document.getElementById("adminContent").innerHTML = html;
-            document.getElementById("backBtn").onclick = () => renderAdminDashboard();
-            document.getElementById("exportBtn").onclick = () => {
-                let csvRows = [["Nama", "Email", "WhatsApp", "Paket", "Harga Dibayar", "Tanggal"]];
-                (profiles || []).forEach(p => { csvRows.push([p.full_name, p.user_id, p.phone || '-', p.is_bundle ? 'Bundle' : (coursesData.find(c => c.id === p.selected_course)?.title || '-'), p.price_paid || 0, p.created_at || '-']); });
-                let csvContent = csvRows.map(row => row.join(",")).join("\n");
-                let blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv" });
-                let a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `laporan_penjualan_${new Date().toISOString().slice(0,10)}.csv`; a.click(); URL.revokeObjectURL(a.href);
-                alert("✅ Laporan diexport!");
-            };
-        }
-        
-        async function renderAdminPracticalExams() {
-            await loadPracticalScores();
-            let users = await supabaseClient.from('profiles').select('user_id, full_name').eq('status', 'approved');
-            let html = `<div class="card"><h2>📝 Input Nilai Praktik</h2>
-            <div class="form-group"><label>Pilih Peserta</label><select id="practicalUserId">${(users.data || []).map(u => `<option value="${u.user_id}">${u.full_name}</option>`).join('')}</select></div>
-            <div class="form-group"><label>Pilih Kursus</label><select id="practicalCourseId">${coursesData.map(c => `<option value="${c.id}">${c.title}</option>`).join('')}</select></div>
-            <div id="practicalLessonDiv"></div><div id="practicalForm" style="display:none;"><div class="form-group"><label>Nilai (0-100)</label><input type="number" id="practicalScore" min="0" max="100"></div>
-            <div class="form-group"><label>Catatan</label><textarea id="practicalNotes" rows="3"></textarea></div><button id="savePracticalBtn" class="btn-success">💾 Simpan Nilai</button></div>
-            <h3>📊 Daftar Nilai Praktik</h3><div id="practicalList"></div><button id="backBtn" class="btn-back">Kembali</button></div>`;
-            document.getElementById("adminContent").innerHTML = html;
-            document.getElementById("backBtn").onclick = () => renderAdminDashboard();
-            
-            function loadLessons() {
-                let courseId = document.getElementById("practicalCourseId").value;
-                let course = coursesData.find(c => c.id == courseId);
-                if (course) {
-                    document.getElementById("practicalLessonDiv").innerHTML = `<div class="form-group"><label>Materi</label><select id="practicalLessonIdx"><option value="">-- Pilih Materi --</option>${(course.lessons || []).map((l, i) => `<option value="${i}">${i+1}. ${l.title}</option>`).join('')}</select></div>`;
-                    document.getElementById("practicalForm").style.display = "block";
-                }
-            }
-            document.getElementById("practicalUserId").onchange = loadLessons;
-            document.getElementById("practicalCourseId").onchange = loadLessons;
-            document.getElementById("savePracticalBtn").onclick = async () => {
-                let userId = document.getElementById("practicalUserId").value;
-                let courseId = document.getElementById("practicalCourseId").value;
-                let lessonIdx = parseInt(document.getElementById("practicalLessonIdx").value);
-                let score = parseInt(document.getElementById("practicalScore").value);
-                let notes = document.getElementById("practicalNotes").value;
-                if (!userId || !courseId || isNaN(lessonIdx) || isNaN(score)) { alert("Lengkapi semua data!"); return; }
-                await savePracticalScore(userId, courseId, lessonIdx, score, notes);
-                alert("✅ Nilai praktik disimpan!");
-                renderAdminPracticalExams();
-            };
-            
-            function renderPracticalList() {
-                let container = document.getElementById("practicalList");
-                container.innerHTML = "<table class='mufradat-table'><thead>运转<th>Peserta</th><th>Kursus</th><th>Materi</th><th>Nilai</th><th>Catatan</th></tr></thead><tbody>";
-                practicalScores.forEach(p => {
-                    let course = coursesData.find(c => c.id == p.course_id);
-                    let lesson = course?.lessons[p.lesson_id];
-                    container.innerHTML += `<tr>
-                        <td>${p.profiles?.full_name || '-'}ER20</div></td>
-                        <td>${course?.title || '-'}ER20</div></td>
-                        <td>${lesson?.title || '-'}ER20</div></td>
-                        <td><strong>${p.score}/100</strong>ER20</div></td>
-                        <td>${p.notes || '-'}ER20</div></td>
-                    </tr>`;
-                });
-                container.innerHTML += "</tbody></table>";
-                if (practicalScores.length === 0) container.innerHTML = "<p>Belum ada nilai praktik.</p>";
-            }
-            renderPracticalList();
         }
         
         async function renderStudentDashboard() {
             const { data: profiles } = await supabaseClient.from('profiles').select('*');
-            let html = `<div class="card"><h2>📋 Daftar Peserta (${profiles?.length || 0})</h2>
-            <div style="overflow-x:auto;"><table class="mufradat-table"><thead>运转<th>Nama</th><th>Email</th><th>WhatsApp</th><th>Paket</th><th>Status</th><th>Saldo</th><th>Aksi</th></tr></thead><tbody>${(profiles || []).map(p => `<tr>
-                <td>${escapeHtml(p.full_name)}</div></td>
-                <td>${p.user_id}</div></td>
-                <td>${p.phone || '-'}</div></td>
-                <td>${p.is_bundle ? 'Bundle' : (coursesData.find(c => c.id === p.selected_course)?.title || '-')}</div></td>
-                <td><span class="badge ${p.status === 'approved' ? 'badge-blue' : 'badge-gold'}">${p.status || 'pending'}</span></div></td>
-                <td>${formatRupiah(p.commission || 0)}</div></td>
-                <td><button class="btn-add-balance" data-user="${p.user_id}" data-name="${escapeHtml(p.full_name)}" style="background:#3498db; padding:5px 10px;">💰 Top Up</button> <button class="btn-ban" data-user="${p.user_id}" style="background:#e74c3c; padding:5px 10px;">🚫 Ban</button></div></td>
-                `).join('')}</tbody></table></div>
-            <button id="backBtn" class="btn-back">Kembali</button></div>`;
+            let html = `<div class="card">
+                <h2>Daftar Peserta (${profiles?.length || 0} orang)</h2>
+                <table class="commission-table">
+                    <thead><tr><th>Nama</th><th>Email</th><th>WhatsApp</th><th>Paket</th><th>Status</th><th>Saldo</th><th>Aksi</th></tr></thead>
+                    <tbody>${(profiles || []).map(p => `<tr>
+                        <td>${escapeHtml(p.full_name)}</div></td>
+                        <td>${p.user_id}</div></td>
+                        <td>${p.phone || '-'}</div></td>
+                        <td>${p.is_bundle ? 'Bundle' : (coursesData.find(c => c.id === p.selected_course)?.title || '-')}</div></td>
+                        <td><span class="badge ${p.status === 'approved' ? 'badge-blue' : 'badge-gold'}">${p.status || 'pending'}</span></div></td>
+                        <td>${formatRupiah(p.commission || 0)}</div></td>
+                        <td><button class="btn-add-balance" data-user="${p.user_id}" data-name="${escapeHtml(p.full_name)}" style="background:#27ae60;">Top Up</button>
+                        <button class="btn-ban" data-user="${p.user_id}" style="background:#e74c3c;">Ban</button></div></td>
+                    `).join('')}</tbody>
+                </table>
+                <button id="backBtn" class="btn-back">Kembali</button>
+            </div>`;
             document.getElementById("adminContent").innerHTML = html;
             document.getElementById("backBtn").onclick = () => renderAdminDashboard();
-            document.querySelectorAll(".btn-ban").forEach(btn => { btn.onclick = async () => { if(confirm("Ban user?")) { await supabaseClient.from('profiles').update({ status: 'banned', account_status: 'banned' }).eq('user_id', btn.getAttribute("data-user")); alert("✅ User dibanned!"); renderStudentDashboard(); } }; });
-            document.querySelectorAll(".btn-add-balance").forEach(btn => { btn.onclick = async () => { let amt = prompt(`Tambah saldo untuk ${btn.getAttribute("data-name")}:`, "100000"); if(amt) { let amount = parseInt(amt); let { data: profile } = await supabaseClient.from('profiles').select('commission').eq('user_id', btn.getAttribute("data-user")).single(); let newBalance = (profile?.commission || 0) + amount; await supabaseClient.from('profiles').update({ commission: newBalance }).eq('user_id', btn.getAttribute("data-user")); alert(`✅ Top up ${formatRupiah(amount)} berhasil!`); renderStudentDashboard(); } }; });
-        }
-        
-        async function renderCertificateSettings() {
-            await loadAppSettings();
-            let html = `<div class="card"><h2>🎓 Pengaturan Sertifikat</h2><form id="certSettingsForm">
-                <div class="form-group"><label>🏫 Nama Lembaga</label><input type="text" id="institutionName" value="${escapeHtml(appSettings.institution_name || 'ALFARUQ ONLINE COURSE')}"></div>
-                <div class="form-group"><label>👨‍🏫 Nama Pengajar</label><input type="text" id="teacherName" value="${escapeHtml(appSettings.teacher_name || 'Ustadz Ahmad Fauzi, Lc.')}"></div>
-                <div class="form-group"><label>👔 Nama Direktur</label><input type="text" id="directorName" value="${escapeHtml(appSettings.director_name || 'Dr. H. Muhammad Ramli, M.Ag.')}"></div>
-                <button type="submit" class="btn-success">💾 Simpan</button>
-                <button type="button" id="backBtn" class="btn-back">Kembali</button>
-            </form>
-            <hr><h3>📄 Preview Sertifikat</h3>
-            <div style="border:2px solid #f4a261; border-radius:20px; padding:20px; background:white; max-width:500px; margin:0 auto; text-align:center;">
-            <div style="font-size:1.2rem;">🎓 ${escapeHtml(document.getElementById("institutionName")?.value || appSettings.institution_name || 'ALFARUQ')}</div>
-            <div style="margin:15px 0;"><div>Diberikan kepada:</div><div style="font-size:1.5rem; font-weight:bold;">[Nama Peserta]</div><div style="font-size:1.2rem; color:#e67e22;">[Nama Kursus]</div></div>
-            <div style="display:flex; justify-content:space-between;">${escapeHtml(appSettings.teacher_name || 'Pengajar')} / ${escapeHtml(appSettings.director_name || 'Direktur')}</div></div></div>`;
-            document.getElementById("adminContent").innerHTML = html;
-            document.getElementById("backBtn").onclick = () => renderAdminDashboard();
-            document.getElementById("certSettingsForm").onsubmit = async (e) => {
-                e.preventDefault();
-                await supabaseClient.from('app_settings').upsert({ key: 'institution_name', value: document.getElementById("institutionName").value });
-                await supabaseClient.from('app_settings').upsert({ key: 'teacher_name', value: document.getElementById("teacherName").value });
-                await supabaseClient.from('app_settings').upsert({ key: 'director_name', value: document.getElementById("directorName").value });
-                alert("✅ Pengaturan sertifikat disimpan!");
-                renderCertificateSettings();
-            };
+            document.querySelectorAll(".btn-ban").forEach(btn => { btn.onclick = async () => { 
+                if(confirm("Ban user ini?")) { 
+                    await supabaseClient.from('profiles').update({ status: 'banned' }).eq('user_id', btn.getAttribute("data-user")); 
+                    alert("User dibanned!"); 
+                    renderStudentDashboard(); 
+                } 
+            }; });
+            document.querySelectorAll(".btn-add-balance").forEach(btn => { btn.onclick = async () => { 
+                let amt = prompt(`Tambah saldo untuk ${btn.getAttribute("data-name")}:`, "100000"); 
+                if(amt) { 
+                    let amount = parseInt(amt); 
+                    let { data: profile } = await supabaseClient.from('profiles').select('commission').eq('user_id', btn.getAttribute("data-user")).single(); 
+                    let newBalance = (profile?.commission || 0) + amount; 
+                    await supabaseClient.from('profiles').update({ commission: newBalance }).eq('user_id', btn.getAttribute("data-user")); 
+                    alert(`Top up ${formatRupiah(amount)} berhasil!`); 
+                    renderStudentDashboard(); 
+                } 
+            }; });
         }
         
         // ======================== ROUTER ========================
@@ -1361,9 +1249,15 @@
             else if (hash === "register-bundle") renderRegisterForm(true);
             else if (hash === "login") renderLoginForm();
             else if (hash === "forgot-password") renderForgotPassword();
-            else if (hash === "dashboard") { if (currentUser) renderUserDashboard(); else window.location.hash = "#login"; }
+            else if (hash === "dashboard") { 
+                if (currentUser) renderUserDashboard(); 
+                else window.location.hash = "#login"; 
+            }
             else if (hash === "admin") renderAdminLogin();
-            else if (hash === "admin-dashboard") { if (isAdmin) renderAdminDashboard(); else { alert("Akses ditolak. Anda bukan admin."); window.location.hash = "#landing"; } }
+            else if (hash === "admin-dashboard") { 
+                if (isAdmin) renderAdminDashboard(); 
+                else { alert("Akses ditolak. Anda bukan admin."); window.location.hash = "#landing"; } 
+            }
             else renderLandingPage();
         }
         
