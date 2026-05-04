@@ -1277,8 +1277,8 @@
         
         async function renderAdminDashboard() {
             const { data: pendingUsers } = await supabaseClient.from('profiles').select('*').eq('status', 'pending');
-            const { data: topups } = await supabaseClient.from('top_up_requests').select('*').eq('status', 'pending');
-            const { data: withdraws } = await supabaseClient.from('withdraw_requests').select('*').eq('status', 'pending');
+            const { data: topups } = await supabaseClient.from('withdraw_requests').select('*').eq('status', 'pending').eq('type', 'topup');
+            const { data: withdraws } = await supabaseClient.from('withdraw_requests').select('*').eq('status', 'pending').eq('type', 'withdraw');
             
             let html = `
                 <div class="tabs">
@@ -1351,9 +1351,9 @@
             
             document.querySelectorAll(".btn-approve").forEach(btn => { btn.onclick = async () => { await supabaseClient.from('profiles').update({ status: 'approved' }).eq('user_id', btn.getAttribute("data-user")); alert("User disetujui!"); renderAdminDashboard(); }; });
             document.querySelectorAll(".btn-reject").forEach(btn => { btn.onclick = async () => { if(confirm("Tolak pendaftaran user ini?")) { await supabaseClient.from('profiles').delete().eq('user_id', btn.getAttribute("data-user")); alert("User ditolak!"); renderAdminDashboard(); } }; });
-            document.querySelectorAll(".approve-topup").forEach(btn => { btn.onclick = async () => { let amount = parseInt(btn.getAttribute("data-amount")); let userId = btn.getAttribute("data-user"); let { data: profile } = await supabaseClient.from('profiles').select('wallet_balance').eq('user_id', userId).single(); let newBalance = (profile?.wallet_balance || 0) + amount; await supabaseClient.from('profiles').update({ wallet_balance: newBalance }).eq('user_id', userId); await supabaseClient.from('top_up_requests').update({ status: 'approved' }).eq('id', btn.getAttribute("data-id")); alert("Top up disetujui!"); renderAdminDashboard(); }; });
-            document.querySelectorAll(".reject-topup").forEach(btn => { btn.onclick = async () => { await supabaseClient.from('top_up_requests').update({ status: 'rejected' }).eq('id', btn.getAttribute("data-id")); alert("Top up ditolak!"); renderAdminDashboard(); }; });
-            document.querySelectorAll(".approve-withdraw").forEach(btn => { btn.onclick = async () => { let amount = parseInt(btn.getAttribute("data-amount")); let userId = btn.getAttribute("data-user"); let { data: profile } = await supabaseClient.from('profiles').select('commission').eq('user_id', userId).single(); let newBalance = (profile?.commission || 0) - amount; await supabaseClient.from('profiles').update({ commission: newBalance }).eq('user_id', userId); await supabaseClient.from('withdraw_requests').update({ status: 'approved' }).eq('id', btn.getAttribute("data-id")); alert("Withdraw disetujui!"); renderAdminDashboard(); }; });
+            document.querySelectorAll(".approve-topup").forEach(btn => { btn.onclick = async () => { let amount = parseInt(btn.getAttribute("data-amount")); let userId = btn.getAttribute("data-user"); let { data: profile } = await supabaseClient.from('profiles').select('wallet_balance').eq('user_id', userId).single(); let newBalance = (profile?.wallet_balance || 0) + amount; await supabaseClient.from('profiles').update({ wallet_balance: newBalance }).eq('user_id', userId); await supabaseClient.from('withdraw_requests').update({ status: 'approved' }).eq('id', btn.getAttribute("data-id")); alert("Top up disetujui!"); renderAdminDashboard(); }; });
+            document.querySelectorAll(".reject-topup").forEach(btn => { btn.onclick = async () => { await supabaseClient.from('withdraw_requests').update({ status: 'rejected' }).eq('id', btn.getAttribute("data-id")); alert("Top up ditolak!"); renderAdminDashboard(); }; });
+            document.querySelectorAll(".approve-withdraw").forEach(btn => { btn.onclick = async () => { let amount = parseInt(btn.getAttribute("data-amount")); let userId = btn.getAttribute("data-user"); let { data: profile } = await supabaseClient.from('profiles').select('wallet_balance, commission').eq('user_id', userId).single(); let newCommission = Math.max(0, (profile?.commission || 0) - amount); await supabaseClient.from('profiles').update({ commission: newCommission }).eq('user_id', userId); await supabaseClient.from('withdraw_requests').update({ status: 'approved' }).eq('id', btn.getAttribute("data-id")); alert("Withdraw disetujui!"); renderAdminDashboard(); }; });
             document.querySelectorAll(".reject-withdraw").forEach(btn => { btn.onclick = async () => { await supabaseClient.from('withdraw_requests').update({ status: 'rejected' }).eq('id', btn.getAttribute("data-id")); alert("Withdraw ditolak!"); renderAdminDashboard(); }; });
         }
         
@@ -1374,8 +1374,8 @@
             document.getElementById("backBtn").onclick = () => renderAdminDashboard();
             document.getElementById("generalSettingsForm").onsubmit = async (e) => {
                 e.preventDefault();
-                await supabaseClient.from('app_settings').upsert({ key: 'default_whatsapp_number', value: document.getElementById("whatsappNumber").value });
-                await supabaseClient.from('app_settings').upsert({ key: 'default_whatsapp_message', value: document.getElementById("whatsappMessage").value });
+                await supabaseClient.from('app_settings').upsert({ key: 'default_whatsapp_number', value: document.getElementById("whatsappNumber").value }, { onConflict: 'key' });
+                await supabaseClient.from('app_settings').upsert({ key: 'default_whatsapp_message', value: document.getElementById("whatsappMessage").value }, { onConflict: 'key' });
                 settings.defaultWhatsappNumber = document.getElementById("whatsappNumber").value;
                 settings.defaultWhatsappMessage = document.getElementById("whatsappMessage").value;
                 alert("Pengaturan disimpan!");
@@ -1570,19 +1570,33 @@
         async function renderSalesReport() {
             let { data: profiles } = await supabaseClient.from('profiles').select('*').eq('status', 'approved');
             let totalRevenue = (profiles || []).reduce((sum, p) => sum + (p.price_paid || 0), 0);
+            let totalBundle = (profiles || []).filter(p => p.is_bundle).length;
+            let totalSingle = (profiles || []).filter(p => !p.is_bundle && (p.purchased_courses || []).length > 0).length;
             let html = `
                 <div class="card">
                     <h2>Laporan Penjualan</h2>
-                    <div class="price-card"><h3>Total Pendapatan</h3><div class="price-new">${formatRupiah(totalRevenue)}</div></div>
-                    <button id="exportBtn" class="btn-success">Export CSV</button>
+                    <div class="stats-grid">
+                        <div class="stat-card"><div class="stat-number">${profiles?.length || 0}</div><div>Total Peserta Aktif</div></div>
+                        <div class="stat-card"><div class="stat-number">${totalBundle}</div><div>Bundle</div></div>
+                        <div class="stat-card"><div class="stat-number">${totalSingle}</div><div>Kursus Satuan</div></div>
+                        <div class="stat-card"><div class="stat-number">${formatRupiah(totalRevenue)}</div><div>Total Pendapatan (price_paid)</div></div>
+                    </div>
+                    <div class="alert-info" style="margin-top:15px;">ℹ️ Kolom "Pendapatan" diambil dari field <code>price_paid</code> di tabel profiles. Pastikan field ini terisi saat pendaftaran.</div>
+                    <table class="report-table" style="margin-top:15px;">
+                        <thead><tr style="background:#1e6b3b;color:white;"><th>Nama</th><th>WhatsApp</th><th>Paket</th><th>Harga Dibayar</th></tr></thead>
+                        <tbody>
+                            ${(profiles || []).map(p => `<tr><td>${escapeHtml(p.full_name)}</td><td>${p.phone || '-'}</td><td>${p.is_bundle ? 'Bundle' : (p.purchased_courses?.length > 0 ? 'Kursus (' + p.purchased_courses.length + ')' : '-')}</td><td>${formatRupiah(p.price_paid || 0)}</td></tr>`).join('') || '<tr><td colspan="4">Belum ada data.</td></tr>'}
+                        </tbody>
+                    </table>
+                    <button id="exportBtn" class="btn-success" style="margin-top:15px;">Export CSV</button>
                     <button id="backBtn" class="btn-back">Kembali</button>
                 </div>
             `;
             document.getElementById("adminContent").innerHTML = html;
             document.getElementById("backBtn").onclick = () => renderAdminDashboard();
             document.getElementById("exportBtn").onclick = () => {
-                let csvRows = [["Nama", "Email", "WhatsApp", "Paket", "Harga Dibayar"]];
-                (profiles || []).forEach(p => { csvRows.push([p.full_name, p.user_id, p.phone || '-', p.is_bundle ? 'Bundle' : 'Kursus', p.price_paid || 0]); });
+                let csvRows = [["Nama", "WhatsApp", "Paket", "Harga Dibayar"]];
+                (profiles || []).forEach(p => { csvRows.push([p.full_name, p.phone || '-', p.is_bundle ? 'Bundle' : 'Kursus', p.price_paid || 0]); });
                 let csvContent = csvRows.map(row => row.join(",")).join("\n");
                 let blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv" });
                 let a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `laporan_penjualan_${new Date().toISOString().slice(0,10)}.csv`; a.click(); URL.revokeObjectURL(a.href);
@@ -1597,7 +1611,7 @@
                     <h2>Manajemen Diskon</h2>
                     <button id="addPromoBtn" class="btn-success">+ Tambah Diskon</button>
                     <div id="promoList">
-                        ${promoData.map(p => `<div style="border-bottom:1px solid #eee; padding:10px;"><strong>${p.code}</strong> - ${p.discount_percent}% | ${p.is_active ? 'Aktif' : 'Nonaktif'}<br><button class="edit-promo" data-id="${p.id}" data-code="${p.code}" data-discount="${p.discount_percent}" data-active="${p.is_active}" class="btn-edit">Edit</button> <button class="delete-promo" data-id="${p.id}" class="btn-danger">Hapus</button></div>`).join('') || '<p>Belum ada kode promo.</p>'}
+                        ${promoData.map(p => `<div style="border-bottom:1px solid #eee; padding:10px;"><strong>${p.code}</strong> - ${p.discount_percent}% | ${p.is_active ? 'Aktif' : 'Nonaktif'}<br><button class="edit-promo btn-edit" data-id="${p.id}" data-code="${p.code}" data-discount="${p.discount_percent}" data-active="${p.is_active}">Edit</button> <button class="delete-promo btn-danger" data-id="${p.id}">Hapus</button></div>`).join('') || '<p>Belum ada kode promo.</p>'}
                     </div>
                     <button id="backBtn" class="btn-back">Kembali</button>
                 </div>
@@ -1627,6 +1641,34 @@
                 e.preventDefault();
                 await savePromoCode({ code: document.getElementById("code").value.toUpperCase(), discount_percent: parseInt(document.getElementById("discount").value), is_active: true });
                 alert("Diskon ditambahkan!");
+                renderPromoManager();
+            };
+        }
+        
+        function renderEditPromoForm(id, code, discount, isActive) {
+            let html = `
+                <div class="card">
+                    <h2>Edit Diskon</h2>
+                    <form id="editPromoForm">
+                        <div class="form-group"><label>Kode Promo</label><input type="text" id="code" value="${escapeHtml(code)}" required></div>
+                        <div class="form-group"><label>Diskon (%)</label><input type="number" id="discount" min="0" max="100" value="${discount}" required></div>
+                        <div class="form-group"><label>Status</label>
+                            <select id="isActive">
+                                <option value="true" ${isActive ? 'selected' : ''}>Aktif</option>
+                                <option value="false" ${!isActive ? 'selected' : ''}>Nonaktif</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn-success">Simpan</button>
+                        <button type="button" id="backBtn" class="btn-back">Kembali</button>
+                    </form>
+                </div>
+            `;
+            document.getElementById("adminContent").innerHTML = html;
+            document.getElementById("backBtn").onclick = () => renderPromoManager();
+            document.getElementById("editPromoForm").onsubmit = async (e) => {
+                e.preventDefault();
+                await savePromoCode({ id: id, code: document.getElementById("code").value.toUpperCase(), discount_percent: parseInt(document.getElementById("discount").value), is_active: document.getElementById("isActive").value === 'true' });
+                alert("Diskon diperbarui!");
                 renderPromoManager();
             };
         }
@@ -1686,6 +1728,7 @@
             }
             document.getElementById("practicalUserId").onchange = loadLessons;
             document.getElementById("practicalCourseId").onchange = loadLessons;
+            loadLessons(); // FIX: auto-load on render so form is visible immediately
             document.getElementById("savePracticalBtn").onclick = async () => {
                 let userId = document.getElementById("practicalUserId").value;
                 let courseId = document.getElementById("practicalCourseId").value;
@@ -1718,15 +1761,16 @@
                 <div class="card">
                     <h2>Daftar Peserta (${profiles?.length || 0})</h2>
                     <table class="report-table">
-                        <thead><tr style="background:#1e6b3b; color:white;"><th>Nama</th><th>Email</th><th>WhatsApp</th><th>Saldo</th><th>Status</th><th>Aksi</th></tr></thead>
+                        <thead><tr style="background:#1e6b3b; color:white;"><th>Nama</th><th>User ID</th><th>WhatsApp</th><th>Saldo</th><th>Komisi</th><th>Status</th><th>Aksi</th></tr></thead>
                         <tbody>
                             ${(profiles || []).map(p => `
                                 <tr>
                                     <td>${escapeHtml(p.full_name)}</td>
-                                    <td>${p.user_id}</td>
+                                    <td style="font-size:0.75rem;">${p.user_id}</td>
                                     <td>${p.phone || '-'}</td>
                                     <td>${formatRupiah(p.wallet_balance || 0)}</td>
-                                    <td><span class="badge ${p.status === 'approved' ? 'badge-blue' : 'badge-gold'}">${p.status || 'pending'}</span></td>
+                                    <td>${formatRupiah(p.commission || 0)}</td>
+                                    <td><span style="background:${p.status === 'approved' ? '#27ae60' : p.status === 'banned' ? '#e74c3c' : '#f39c12'}; color:white; padding:3px 8px; border-radius:20px; font-size:0.75rem;">${p.status || 'pending'}</span></td>
                                     <td>
                                         <button class="btn-approve-user" data-id="${p.user_id}" style="background:#27ae60; padding:5px 10px;">Approve</button>
                                         <button class="btn-topup-user" data-id="${p.user_id}" data-name="${escapeHtml(p.full_name)}" style="background:#3498db; padding:5px 10px;">Top Up</button>
@@ -1764,9 +1808,9 @@
             document.getElementById("backBtn").onclick = () => renderAdminDashboard();
             document.getElementById("certSettingsForm").onsubmit = async (e) => {
                 e.preventDefault();
-                await supabaseClient.from('app_settings').upsert({ key: 'institution_name', value: document.getElementById("institutionName").value });
-                await supabaseClient.from('app_settings').upsert({ key: 'teacher_name', value: document.getElementById("teacherName").value });
-                await supabaseClient.from('app_settings').upsert({ key: 'director_name', value: document.getElementById("directorName").value });
+                await supabaseClient.from('app_settings').upsert({ key: 'institution_name', value: document.getElementById("institutionName").value }, { onConflict: 'key' });
+                await supabaseClient.from('app_settings').upsert({ key: 'teacher_name', value: document.getElementById("teacherName").value }, { onConflict: 'key' });
+                await supabaseClient.from('app_settings').upsert({ key: 'director_name', value: document.getElementById("directorName").value }, { onConflict: 'key' });
                 alert("Pengaturan sertifikat disimpan!");
                 renderCertificateSettings();
             };
@@ -1837,9 +1881,9 @@
                 let enabled = document.getElementById("earlyBirdEnabled").value === "true";
                 let discount = parseInt(document.getElementById("earlyBirdDiscount").value);
                 let endDate = document.getElementById("earlyBirdEndDate").value;
-                await supabaseClient.from('app_settings').upsert({ key: 'early_bird_enabled', value: String(enabled) });
-                await supabaseClient.from('app_settings').upsert({ key: 'early_bird_discount', value: String(discount) });
-                await supabaseClient.from('app_settings').upsert({ key: 'early_bird_end_date', value: endDate });
+                await supabaseClient.from('app_settings').upsert({ key: 'early_bird_enabled', value: String(enabled) }, { onConflict: 'key' });
+                await supabaseClient.from('app_settings').upsert({ key: 'early_bird_discount', value: String(discount) }, { onConflict: 'key' });
+                await supabaseClient.from('app_settings').upsert({ key: 'early_bird_end_date', value: endDate }, { onConflict: 'key' });
                 settings.earlyBirdEnabled = enabled;
                 settings.earlyBirdDiscount = discount;
                 settings.earlyBirdEndDate = endDate;
