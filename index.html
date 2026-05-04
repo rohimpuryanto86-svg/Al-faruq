@@ -6,7 +6,8 @@
     <title>ALFARUQ ONLINE COURSE - Belajar Islam Dalam Genggaman</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
 
@@ -41,7 +42,7 @@
         body { background: var(--bg-body); min-height: 100vh; transition: background 0.3s; }
         .container { max-width: 1200px; margin: auto; padding: 20px; }
 
-        /* Sertifikat & Rapor - Ukuran A4, margin rapi, font normal */
+        /* Sertifikat A4 */
         @media print {
             body { background: white; padding: 0; margin: 0; }
             .container { max-width: 100%; padding: 0; margin: 0; }
@@ -66,7 +67,6 @@
             padding: 20mm;
             box-sizing: border-box;
             border: 1px solid #ddd;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
             font-family: 'Times New Roman', Times, serif;
         }
         
@@ -80,19 +80,13 @@
         .certificate-logo { font-size: 2.5rem; text-align: center; margin-bottom: 10px; }
         .certificate-title { text-align: center; font-size: 28pt; color: #1e6b3b; letter-spacing: 4px; margin: 15px 0; font-weight: bold; }
         .certificate-subtitle { text-align: center; font-size: 16pt; color: #666; margin-bottom: 20px; }
-        .certificate-divider { width: 80px; height: 3px; background: #f4a261; margin: 15px auto; }
-        .certificate-recipient { text-align: center; margin: 25px 0; }
-        .certificate-recipient-label { font-size: 12pt; color: #666; }
-        .certificate-recipient-name { font-size: 28pt; font-weight: bold; color: #2c3e50; margin: 10px 0; font-family: 'Times New Roman', serif; }
+        .certificate-recipient-name { font-size: 28pt; font-weight: bold; color: #2c3e50; margin: 10px 0; text-align: center; }
         .certificate-course { text-align: center; font-size: 18pt; color: #e67e22; margin: 20px 0; font-weight: bold; }
-        .certificate-description { text-align: center; font-size: 11pt; color: #555; margin: 20px 0; line-height: 1.6; }
-        .certificate-score { text-align: center; font-size: 14pt; margin: 10px 0; }
-        .certificate-footer { margin-top: 30px; display: flex; justify-content: space-between; }
+        .certificate-footer { margin-top: 40px; display: flex; justify-content: space-between; }
         .certificate-signature { text-align: center; width: 45%; }
         .certificate-signature-line { border-top: 1px solid #333; width: 80%; margin: 30px auto 10px; }
-        .certificate-qr { text-align: center; margin-top: 20px; }
         .certificate-id { text-align: center; font-size: 9pt; color: #999; margin-top: 15px; }
-        
+
         .report-container {
             background: white;
             max-width: 210mm;
@@ -103,23 +97,17 @@
             font-family: 'Segoe UI', sans-serif;
         }
         
-        .report-header { text-align: center; margin-bottom: 20px; }
-        .report-title { font-size: 20pt; color: #1e6b3b; font-weight: bold; }
-        .report-subtitle { font-size: 10pt; color: #666; }
+        .report-title { font-size: 20pt; color: #1e6b3b; font-weight: bold; text-align: center; margin-bottom: 20px; }
         .report-section { margin: 15px 0; }
         .report-section-title { font-size: 14pt; font-weight: bold; border-bottom: 2px solid #1e6b3b; padding-bottom: 5px; margin-bottom: 10px; }
         .report-table { width: 100%; border-collapse: collapse; margin: 10px 0; }
         .report-table th, .report-table td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 10pt; }
         .report-table th { background: #1e6b3b; color: white; }
-        .badge-list { display: flex; gap: 15px; flex-wrap: wrap; margin: 10px 0; }
-        .badge-item { text-align: center; padding: 10px; background: #f8f9fa; border-radius: 12px; min-width: 80px; }
-        .badge-item.earned { background: #d4edda; border: 1px solid #27ae60; }
-        .badge-icon { font-size: 2rem; }
 
-        /* Landing Page Styles */
         .landing-header { text-align: center; color: var(--text-light); padding: 40px 20px 20px 20px; }
         .logo { font-size: 2rem; font-weight: bold; letter-spacing: 2px; margin-bottom: 10px; }
         .tagline { font-size: 1rem; opacity: 0.9; }
+        
         button, .btn { background: var(--secondary); border: none; padding: 12px 24px; border-radius: 40px; cursor: pointer; font-weight: bold; transition: 0.2s; margin: 5px; display: inline-block; color: #333; }
         button:hover, .btn:hover { background: var(--secondary-dark); transform: scale(1.02); }
         .btn-success { background: #27ae60; color: white; }
@@ -131,45 +119,77 @@
         .btn-copy { background: #3498db; color: white; }
         .btn-primary { background: #3498db; color: white; }
         .btn-telegram { background: #0088cc; color: white; }
+        
         .card { background: var(--bg-card); border-radius: 28px; padding: 25px; margin-bottom: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); color: var(--text-color); transition: background 0.3s; }
         .benefit-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin: 30px 0; }
         .benefit-card { background: var(--bg-card); border-radius: 20px; padding: 20px; text-align: center; box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
-        .course-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; margin-top: 20px; }
+        .benefit-icon { font-size: 2.5rem; margin-bottom: 10px; }
+        .benefit-title { font-size: 1.2rem; font-weight: bold; margin: 10px 0; }
+        
+        .course-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; margin-top: 20px; }
         .course-card { background: var(--bg-card); border-radius: 24px; padding: 20px; text-align: center; position: relative; transition: 0.2s; border: 1px solid var(--border-color); }
         .course-card.owned { border: 2px solid #27ae60; background: rgba(39,174,96,0.05); }
         .course-icon { font-size: 2.5rem; margin-bottom: 10px; }
         .course-title { font-size: 1.2rem; font-weight: bold; margin: 10px 0; }
         .course-price { font-size: 1.2rem; font-weight: bold; color: var(--secondary-dark); margin: 10px 0; }
+        .lock-badge { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.7); color: white; padding: 5px 10px; border-radius: 20px; font-size: 0.7rem; }
+        .owned-badge { position: absolute; top: 10px; right: 10px; background: #27ae60; color: white; padding: 5px 10px; border-radius: 20px; font-size: 0.7rem; }
+        
         .commission-table { width: 100%; border-collapse: collapse; margin: 15px 0; }
         .commission-table th, .commission-table td { border: 1px solid var(--border-color); padding: 10px; text-align: center; }
         .commission-table th { background: var(--primary); color: white; }
+        
         .price-card { background: #f8f9fa; border-radius: 20px; padding: 20px; text-align: center; }
         .price-old { text-decoration: line-through; color: #999; font-size: 0.9rem; }
         .price-new { font-size: 1.8rem; font-weight: bold; color: var(--secondary-dark); }
         .countdown-badge { background: rgba(0,0,0,0.8); display: inline-block; padding: 10px 20px; border-radius: 50px; font-size: 1.2rem; font-weight: bold; color: var(--secondary); margin: 20px 0; }
+        
         .tabs { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
         .tab { background: rgba(255,255,255,0.2); padding: 8px 20px; border-radius: 40px; cursor: pointer; color: white; font-weight: bold; }
         .tab.active { background: var(--secondary); color: var(--primary-dark); }
+        
         .form-group { margin-bottom: 15px; }
         .form-group label { display: block; font-weight: bold; margin-bottom: 5px; }
         .form-group input, .form-group textarea, .form-group select { width: 100%; padding: 12px; border-radius: 30px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-color); }
+        
+        .checkbox-group { display: flex; align-items: center; gap: 10px; margin: 15px 0; }
+        .checkbox-group input { width: auto; }
+        
         .alert { padding: 12px; border-radius: 16px; margin-bottom: 15px; }
         .alert-success { background: #d4edda; color: #155724; border-left: 4px solid #27ae60; }
         .alert-warning { background: #fff3cd; color: #856404; border-left: 4px solid #ffc107; }
         .alert-info { background: #d1ecf1; color: #0c5460; border-left: 4px solid #17a2b8; }
         .alert-danger { background: #f8d7da; color: #721c24; border-left: 4px solid #e74c3c; }
+        
         .progress-bar { background: #e0e0e0; border-radius: 20px; height: 10px; margin: 10px 0; overflow: hidden; }
         .progress-fill { background: #27ae60; height: 100%; width: 0%; border-radius: 20px; }
+        
         .lesson-list { display: flex; flex-direction: column; gap: 8px; margin-top: 15px; }
         .lesson-item { background: var(--bg-lesson); border-radius: 16px; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
         .lesson-item.completed { background: var(--bg-completed); border-left: 4px solid #27ae60; }
+        
         .video-wrapper { position: relative; padding-bottom: 56.25%; height: 0; margin: 20px 0; border-radius: 20px; overflow: hidden; }
         .video-wrapper iframe { position: absolute; width: 100%; height: 100%; }
+        
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; justify-content: center; align-items: center; }
+        .modal-content { background: var(--bg-card); max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto; border-radius: 20px; padding: 25px; position: relative; }
+        .modal-close { position: absolute; top: 15px; right: 20px; font-size: 1.5rem; cursor: pointer; }
+        
         .admin-corner-btn { position: fixed; top: 20px; right: 20px; z-index: 1000; background: #2c3e50; color: white; padding: 10px 20px; border-radius: 40px; cursor: pointer; font-weight: bold; }
         .dark-mode-toggle { position: fixed; top: 20px; left: 20px; z-index: 1000; background: #2c3e50; color: white; padding: 10px 16px; border-radius: 40px; cursor: pointer; font-weight: bold; }
         
+        .badge-container { display: flex; gap: 15px; flex-wrap: wrap; margin-top: 15px; }
+        .badge-item { text-align: center; padding: 10px; background: var(--bg-lesson); border-radius: 16px; min-width: 80px; }
+        .badge-item.earned { background: #d4edda; border: 1px solid #27ae60; }
+        .badge-icon { font-size: 2rem; }
+        
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-top: 15px; }
+        .stat-card { background: var(--bg-lesson); border-radius: 16px; padding: 15px; text-align: center; }
+        .stat-number { font-size: 2rem; font-weight: bold; color: #1e6b3b; }
+        
         @media (max-width: 768px) {
             .benefit-grid { grid-template-columns: 1fr; }
+            .course-grid { grid-template-columns: 1fr; }
             .certificate-container { padding: 10mm; }
             .certificate-title { font-size: 20pt; }
             .certificate-recipient-name { font-size: 22pt; }
@@ -185,8 +205,8 @@
         const SUPABASE_URL = "https://yfrpaacvuvgtqbsuihoa.supabase.co";
         const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlmcnBhYWN2dXZndHFic3VpaG9hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc3NzI2OTcsImV4cCI6MjA5MzM0ODY5N30.kKhxyE03vIflYRp3MKjOP1Sd_3V81uk05tv5BQ_Ck68";
         
-        // ======================== KONFIGURASI QRIS MANUAL ========================
-        const QRIS_IMAGE_URL = "https://i.ibb.co.com/4Rq0V6JN/Kode-QRIS-ROHIM-PURYANTO-S-PD-I-Edukasi-1.png"; // Ganti dengan gambar QRIS asli
+        // ======================== KONFIGURASI QRIS ========================
+        const QRIS_IMAGE_URL = "https://i.ibb.co.com/4Rq0V6JN/Kode-QRIS-ROHIM-PURYANTO-S-PD-I-Edukasi-1.png";
         const BANK_ACCOUNT = "BRI: 4878 0102 2800 534 a.n Rohim Puryanto";
         
         // ======================== GLOBAL VARIABLES ========================
@@ -196,6 +216,8 @@
         let isAdmin = false;
         let currentCourseForUser = null;
         let selectedLessonIndex = null;
+        let editingCourseId = null;
+        let editingLessonIndex = null;
         let settings = {
             defaultWhatsappNumber: "6281359659947",
             earlyBirdEnabled: true,
@@ -242,7 +264,6 @@
                 return true;
             } catch(e) { 
                 console.error(e); 
-                document.getElementById("appRoot").innerHTML = '<div class="card"><h2>Error Koneksi</h2><p>Gagal terhubung ke database. Pastikan koneksi internet aktif.</p></div>';
                 return false; 
             }
         }
@@ -278,7 +299,6 @@
                 currentUser.referralCode = data.referral_code;
                 currentUser.canRefer = data.can_refer || false;
                 currentUser.phone = data.phone;
-                currentUser.status = data.status;
                 currentUser.purchasedCourses = data.purchased_courses || [];
                 currentUser.isBundle = data.is_bundle || false;
                 currentUser.completedLessons = {};
@@ -354,15 +374,9 @@
             
             const newBalance = currentUser.walletBalance - price;
             const newPurchased = [...(currentUser.purchasedCourses || []), courseId];
-            
-            await supabaseClient.from('profiles').update({ 
-                wallet_balance: newBalance,
-                purchased_courses: newPurchased
-            }).eq('user_id', currentUser.id);
-            
+            await supabaseClient.from('profiles').update({ wallet_balance: newBalance, purchased_courses: newPurchased }).eq('user_id', currentUser.id);
             currentUser.walletBalance = newBalance;
             currentUser.purchasedCourses = newPurchased;
-            
             alert(`Berhasil membeli ${course?.title}! Saldo: ${formatRupiah(newBalance)}`);
             return true;
         }
@@ -374,29 +388,11 @@
                 return false;
             }
             if (!confirm(`Beli BUNDLE (akses semua kursus) seharga ${formatRupiah(bundlePrice)}?`)) return false;
-            
             const newBalance = currentUser.walletBalance - bundlePrice;
-            await supabaseClient.from('profiles').update({ 
-                wallet_balance: newBalance,
-                is_bundle: true
-            }).eq('user_id', currentUser.id);
-            
+            await supabaseClient.from('profiles').update({ wallet_balance: newBalance, is_bundle: true }).eq('user_id', currentUser.id);
             currentUser.walletBalance = newBalance;
             currentUser.isBundle = true;
-            
-            alert(`Berhasil membeli BUNDLE! Anda sekarang punya akses ke semua kursus. Saldo: ${formatRupiah(newBalance)}`);
-            return true;
-        }
-        
-        async function requestTopUp(amount, proofUrl) {
-            const { data, error } = await supabaseClient.from('top_up_requests').insert({
-                user_id: currentUser.id,
-                amount: amount,
-                proof_url: proofUrl,
-                status: 'pending'
-            });
-            if (error) throw error;
-            alert(`Request top up ${formatRupiah(amount)} diajukan. Menunggu verifikasi admin.`);
+            alert(`Berhasil membeli BUNDLE! Saldo: ${formatRupiah(newBalance)}`);
             return true;
         }
         
@@ -406,12 +402,21 @@
                 return false;
             }
             const newBalance = currentUser.walletBalance + amount;
-            await supabaseClient.from('profiles').update({ 
-                wallet_balance: newBalance
-            }).eq('user_id', currentUser.id);
+            await supabaseClient.from('profiles').update({ wallet_balance: newBalance }).eq('user_id', currentUser.id);
             currentUser.walletBalance = newBalance;
             alert(`Top up ${formatRupiah(amount)} berhasil! Saldo: ${formatRupiah(newBalance)}`);
             return true;
+        }
+        
+        async function requestTopUp(amount, proofUrl) {
+            await supabaseClient.from('top_up_requests').insert({ user_id: currentUser.id, amount: amount, proof_url: proofUrl, status: 'pending' });
+            alert(`Request top up ${formatRupiah(amount)} diajukan. Menunggu verifikasi admin.`);
+            return true;
+        }
+        
+        async function uploadToImgBB(file) {
+            // Untuk sementara, kembalikan URL lokal
+            return URL.createObjectURL(file);
         }
         
         async function checkAndUpdateReferralStatus() {
@@ -421,20 +426,13 @@
                     let completed = currentUser.completedLessons[course.id] || [];
                     let totalLessons = (course.lessons || []).length;
                     if (completed.length === totalLessons && totalLessons > 0) {
-                        let totalScore = 0;
-                        let quizCount = 0;
+                        let totalScore = 0, quizCount = 0;
                         for (let i = 0; i < totalLessons; i++) {
                             let quizScore = localStorage.getItem(`quiz_${currentUser.id}_${course.id}_${i}`);
-                            if (quizScore) {
-                                totalScore += parseInt(quizScore);
-                                quizCount++;
-                            }
+                            if (quizScore) { totalScore += parseInt(quizScore); quizCount++; }
                         }
                         let avgScore = quizCount > 0 ? (totalScore / quizCount) * 10 : 0;
-                        if (avgScore >= 70) {
-                            canRefer = true;
-                            break;
-                        }
+                        if (avgScore >= 70) { canRefer = true; break; }
                     }
                 }
             }
@@ -443,17 +441,6 @@
                 currentUser.canRefer = canRefer;
             }
             return canRefer;
-        }
-        
-        async function applyReferralCode(code) {
-            if (!code) return false;
-            const { data: referrer } = await supabaseClient.from('profiles')
-                .select('user_id, full_name, can_refer')
-                .eq('referral_code', code.toUpperCase())
-                .single();
-            if (!referrer || !referrer.can_refer) return false;
-            await supabaseClient.from('profiles').update({ referred_by: referrer.user_id }).eq('user_id', currentUser.id);
-            return true;
         }
         
         function getCourseProgress(courseId) {
@@ -489,7 +476,7 @@
                     <p>Kini ada <strong>4 kursus online praktis</strong>, cukup <strong>15 menit sehari</strong>.</p>
                     <div class="countdown-badge" id="landingCountdown">Memuat...</div>
                     <div>
-                        <button onclick="window.location.hash='#register'">Daftar Gratis</button>
+                        <button onclick="window.location.hash='#register'">Daftar Sekarang</button>
                         <button class="btn-outline" onclick="window.location.hash='#login'">Login</button>
                     </div>
                 </div>
@@ -501,23 +488,33 @@
                 </div>
                 <div class="card">
                     <h2 style="text-align:center;">Program Reseller</h2>
-                    <table class="commission-table"><thead><tr><th>Level</th><th>Referral</th><th>Komisi</th></tr></thead><tbody>
-                        <tr><td>BASIC</td><td>0-49</td><td>20%</td></tr>
-                        <tr><td>BRONZE</td><td>50-99</td><td>25%</td></tr>
-                        <tr><td>SILVER</td><td>100-499</td><td>30%</td></tr>
-                        <tr><td>GOLD</td><td>500-999</td><td>35%</td></tr>
-                        <tr><td>PLATINUM</td><td>1000-4999</td><td>40%</td></tr>
-                        <tr><td>DIAMOND</td><td>5000+</td><td>50%</td></tr>
-                    </tbody></table>
+                    <table class="commission-table">
+                        <thead><tr><th>Level</th><th>Referral</th><th>Komisi</th></tr></thead>
+                        <tbody>
+                            <tr><td class="badge-gold">BASIC</div><td>0-49</div><td>20%</div></tr>
+                            <tr><td class="badge-gold">BRONZE</div><td>50-99</div><td>25%</div></tr>
+                            <tr><td class="badge-gold">SILVER</div><td>100-499</div><td>30%</div></tr>
+                            <tr><td class="badge-gold">GOLD</div><td>500-999</div><td>35%</div></tr>
+                            <tr><td class="badge-gold">PLATINUM</div><td>1000-4999</div><td>40%</div></tr>
+                            <tr><td class="badge-gold">DIAMOND</div><td>5000+</div><td>50%</div></tr>
+                        </tbody>
+                    </table>
                 </div>
                 <div class="card" style="text-align:center;">
                     <h2>Early Bird ${settings.earlyBirdDiscount}%</h2>
                     <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:20px;">
-                        <div class="price-card"><h3>Pilih 1 Kursus</h3><div class="price-old">Rp 200.000</div><div class="price-new">${formatRupiah(getDiscountedPrice(200000))}</div><button onclick="window.location.hash='#register'">Daftar Gratis</button></div>
-                        <div class="price-card"><h3>Bundle (Akses Semua Kursus)</h3><div class="price-old">Rp 800.000</div><div class="price-new">${formatRupiah(getDiscountedPrice(800000))}</div><button onclick="window.location.hash='#register'">Daftar Gratis</button></div>
+                        <div class="price-card"><h3>Pilih 1 Kursus</h3><div class="price-old">Rp 200.000</div><div class="price-new">${formatRupiah(getDiscountedPrice(200000))}</div><button onclick="window.location.hash='#register'">Pilih</button></div>
+                        <div class="price-card"><h3>Bundle (Akses Semua Kursus)</h3><div class="price-old">Rp 800.000</div><div class="price-new">${formatRupiah(getDiscountedPrice(800000))}</div><button onclick="window.location.hash='#register-bundle'">Ambil Bundle</button></div>
                     </div>
                 </div>
-                <footer style="background:rgba(0,0,0,0.3); border-radius:20px; padding:30px; margin-top:50px; color:white; text-align:center;"><p>Kontak: ${settings.defaultWhatsappNumber} | 2025 ALFARUQ</p></footer>
+                <footer style="background:rgba(0,0,0,0.3); border-radius:20px; padding:30px; margin-top:50px; color:white;">
+                    <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:30px;">
+                        <div><h4>ALFARUQ</h4><p>Kursus Islam praktis</p></div>
+                        <div><h4>Kontak</h4><p>📞 ${settings.defaultWhatsappNumber}</p></div>
+                        <div><h4>Legal</h4><p><a href="#" onclick="showModal('disclaimer'); return false;">Disclaimer</a> | <a href="#" onclick="showModal('privacy'); return false;">Privacy</a> | <a href="#" onclick="showModal('terms'); return false;">Syarat</a></p></div>
+                        <div><h4>2025</h4><p>All rights reserved</p></div>
+                    </div>
+                </footer>
             `;
             document.getElementById("appRoot").innerHTML = html;
             updateLandingCountdown();
@@ -541,64 +538,104 @@
             el.innerHTML = "Early Bird berakhir! Cek harga normal.";
         }
         
-        function renderRegisterForm() {
+        function showModal(type) {
+            let title = "", content = "";
+            if (type === 'disclaimer') title = "Disclaimer", content = "<p>1. Hasil belajar tergantung intensitas peserta.<br>2. Kursus self-paced.<br>3. Garansi 7 hari.</p>";
+            else if (type === 'privacy') title = "Privacy Policy", content = "<p>Data hanya untuk administrasi kursus.</p>";
+            else if (type === 'terms') title = "Syarat & Ketentuan", content = "<p>Dengan mendaftar, Anda menyetujui semua ketentuan.</p>";
+            let modalHtml = `<div class="modal" id="legalModal" style="display:flex;"><div class="modal-content"><span class="modal-close" onclick="closeModal()">&times;</span><h2>${title}</h2><hr>${content}<button onclick="closeModal()">Tutup</button></div></div>`;
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+        }
+        
+        function closeModal() { let m = document.getElementById("legalModal"); if (m) m.remove(); }
+        window.showModal = showModal; window.closeModal = closeModal;
+        
+        function renderRegisterForm(isBundle = false) {
+            let price = getDiscountedPrice(isBundle ? 800000 : 200000);
             let html = `
                 <div class="card">
-                    <h2>Daftar Akun Gratis</h2>
-                    <div class="alert-info">Pendaftaran GRATIS! Setelah login, Anda bisa membeli kursus yang diinginkan.</div>
+                    <h2>${isBundle ? "Pendaftaran Bundle (Akses Semua Kursus)" : "Pendaftaran Kursus"}</h2>
+                    <div class="alert-info">Biaya: ${formatRupiah(price)}</div>
                     <form id="registerForm">
                         <div class="form-group"><label>Nama Lengkap</label><input type="text" id="regName" required></div>
                         <div class="form-group"><label>Email</label><input type="email" id="regEmail" required></div>
                         <div class="form-group"><label>Password</label><input type="password" id="regPassword" required></div>
                         <div class="form-group"><label>No WhatsApp</label><input type="text" id="regPhone" required></div>
                         <div class="form-group"><label>Alamat</label><textarea id="regAddress" rows="2"></textarea></div>
-                        <div class="form-group"><label>Kode Referral (opsional)</label><input type="text" id="refCode" placeholder="Masukkan kode referral jika ada"></div>
-                        <div class="checkbox-group"><input type="checkbox" id="agreeTerms" required> <label>Saya setuju syarat & ketentuan</label></div>
-                        <button type="submit" class="btn-success">Daftar Gratis</button>
+                        ${!isBundle ? `<div class="form-group"><label>Pilih Kursus</label><select id="selectedCourse" required>${coursesData.map(c => `<option value="${c.id}">${c.title}</option>`).join('')}</select></div>` : ''}
+                        <div class="form-group"><label>Upload Bukti Bayar</label><input type="file" id="paymentProof" accept="image/*"></div>
+                        <div class="checkbox-group"><input type="checkbox" id="agreeTerms" required> <label>Saya setuju <a href="#" onclick="showModal('terms'); return false;">Syarat & Ketentuan</a></label></div>
+                        <button type="submit" class="btn-success">Daftar</button>
                         <button type="button" onclick="window.location.hash='#landing'" class="btn-back">Kembali</button>
                     </form>
                 </div>
             `;
             document.getElementById("appRoot").innerHTML = html;
+            
             document.getElementById("registerForm").onsubmit = async (e) => {
                 e.preventDefault();
-                let email = document.getElementById("regEmail").value;
-                let password = document.getElementById("regPassword").value;
-                let fullName = document.getElementById("regName").value;
-                let phone = document.getElementById("regPhone").value;
-                let address = document.getElementById("regAddress").value;
-                let referralCode = document.getElementById("refCode").value;
-                const { data, error } = await supabaseClient.auth.signUp({ email, password, options: { data: { full_name: fullName, phone, address, status: "approved", wallet_balance: 0, can_refer: false } } });
+                if (!document.getElementById("agreeTerms").checked) { alert("Anda harus menyetujui Syarat & Ketentuan!"); return; }
+                let file = document.getElementById("paymentProof").files[0];
+                let paymentProofUrl = file ? await uploadToImgBB(file) : "https://via.placeholder.com/150?text=Bukti+Bayar";
+                let email = document.getElementById("regEmail").value, password = document.getElementById("regPassword").value, fullName = document.getElementById("regName").value, phone = document.getElementById("regPhone").value, address = document.getElementById("regAddress").value;
+                let selectedCourse = !isBundle ? parseInt(document.getElementById("selectedCourse").value) : null;
+                
+                const { error } = await supabaseClient.auth.signUp({ 
+                    email, password, 
+                    options: { data: { full_name: fullName, phone, address, payment_proof: paymentProofUrl, status: "pending", selected_course: selectedCourse, is_bundle: isBundle, price_paid: price, wallet_balance: 0 } } 
+                });
                 if (error) { alert("Registrasi gagal: " + error.message); return; }
-                if (referralCode && data.user) {
-                    currentUser = data.user;
-                    await loadUserProfile();
-                    await applyReferralCode(referralCode);
-                }
-                alert("Pendaftaran berhasil! Silakan login.");
+                alert("Pendaftaran berhasil! Mohon tunggu verifikasi admin.");
                 window.location.hash = "#login";
             };
         }
         
         function renderLoginForm() {
-            let html = `<div class="card"><h2>Login</h2><form id="loginForm"><div class="form-group"><label>Email</label><input type="email" id="loginEmail"></div><div class="form-group"><label>Password</label><input type="password" id="loginPassword"></div><button type="submit">Login</button><button type="button" onclick="window.location.hash='#forgot-password'" style="background:none;color:var(--secondary);">Lupa Password?</button><button type="button" onclick="window.location.hash='#landing'" class="btn-outline">Kembali</button></form></div>`;
+            let html = `
+                <div class="card">
+                    <h2>Login</h2>
+                    <form id="loginForm">
+                        <div class="form-group"><label>Email</label><input type="email" id="loginEmail"></div>
+                        <div class="form-group"><label>Password</label><input type="password" id="loginPassword"></div>
+                        <button type="submit">Login</button>
+                        <button type="button" onclick="window.location.hash='#forgot-password'" style="background:none;color:var(--secondary);">Lupa Password?</button>
+                        <button type="button" onclick="window.location.hash='#landing'" class="btn-outline">Kembali</button>
+                    </form>
+                </div>
+            `;
             document.getElementById("appRoot").innerHTML = html;
+            
             document.getElementById("loginForm").onsubmit = async (e) => {
                 e.preventDefault();
-                let email = document.getElementById("loginEmail").value;
-                let password = document.getElementById("loginPassword").value;
+                let email = document.getElementById("loginEmail").value, password = document.getElementById("loginPassword").value;
                 const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
                 if (error) { alert("Login gagal: " + error.message); return; }
                 currentUser = data.user;
                 await loadUserProfile();
                 await checkAdminStatus();
+                if (currentUser.status !== 'approved') {
+                    alert("Akun Anda belum disetujui oleh admin. Silakan tunggu verifikasi.");
+                    await supabaseClient.auth.signOut();
+                    window.location.hash = "#landing";
+                    return;
+                }
                 window.location.hash = "#dashboard";
             };
         }
         
         function renderForgotPassword() {
-            let html = `<div class="card"><h2>Lupa Password</h2><form id="forgotForm"><div class="form-group"><label>Email</label><input type="email" id="fpEmail"></div><button type="submit">Kirim Reset Password</button><button type="button" onclick="window.location.hash='#login'" class="btn-outline">Kembali</button></form></div>`;
+            let html = `
+                <div class="card">
+                    <h2>Lupa Password</h2>
+                    <form id="forgotForm">
+                        <div class="form-group"><label>Email</label><input type="email" id="fpEmail"></div>
+                        <button type="submit">Kirim Reset Password</button>
+                        <button type="button" onclick="window.location.hash='#login'" class="btn-outline">Kembali</button>
+                    </form>
+                </div>
+            `;
             document.getElementById("appRoot").innerHTML = html;
+            
             document.getElementById("forgotForm").onsubmit = async (e) => {
                 e.preventDefault();
                 let email = document.getElementById("fpEmail").value;
@@ -611,6 +648,7 @@
         async function renderUserDashboard() {
             await checkAndUpdateReferralStatus();
             let overall = getOverallProgress();
+            
             let html = `
                 <div class="tabs">
                     <div class="tab active">Dashboard</div>
@@ -619,40 +657,72 @@
                     <div class="tab" id="walletTab">Wallet</div>
                     <div class="tab" id="certificateTab">Sertifikat</div>
                     <div class="tab" id="reportTab">Rapor & Badge</div>
+                    <div class="tab" id="resellerTab">Reseller</div>
                     <div class="tab" id="logoutTab">Logout</div>
                 </div>
                 <div class="card">
                     <h2>Selamat Datang, ${escapeHtml(currentUser.name)}!</h2>
-                    <p>WhatsApp: ${currentUser.phone || '-'}</p>
+                    <p>WhatsApp: ${currentUser.phone || settings.defaultWhatsappNumber}</p>
                     <p>Saldo Wallet: <strong style="color:#27ae60;">${formatRupiah(currentUser.walletBalance)}</strong></p>
-                    <div class="stats-grid" style="display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:15px; margin-top:15px;">
-                        <div class="stat-card" style="background:var(--bg-lesson); border-radius:16px; padding:15px; text-align:center;"><div class="stat-number" style="font-size:2rem; font-weight:bold; color:#1e6b3b;">${overall.completed}</div><div>Materi Selesai</div></div>
-                        <div class="stat-card" style="background:var(--bg-lesson); border-radius:16px; padding:15px; text-align:center;"><div class="stat-number" style="font-size:2rem; font-weight:bold; color:#1e6b3b;">${currentUser.purchasedCourses?.length || 0}</div><div>Kursus Dimiliki</div></div>
-                        <div class="stat-card" style="background:var(--bg-lesson); border-radius:16px; padding:15px; text-align:center;"><div class="stat-number" style="font-size:2rem; font-weight:bold; color:#1e6b3b;">${currentUser.isBundle ? 'Ya' : 'Tidak'}</div><div>Bundle</div></div>
+                    <p>Kode Referral: <code>${currentUser.referralCode}</code> <button onclick="copyReferral()" class="btn-copy">Salin Link</button></p>
+                    <div class="stats-grid">
+                        <div class="stat-card"><div class="stat-number">${overall.completed}</div><div>Materi Selesai</div></div>
+                        <div class="stat-card"><div class="stat-number">${currentUser.purchasedCourses?.length || 0}</div><div>Kursus Dimiliki</div></div>
+                        <div class="stat-card"><div class="stat-number">${currentUser.isBundle ? 'Ya' : 'Tidak'}</div><div>Bundle</div></div>
                     </div>
                     <div class="progress-bar"><div class="progress-fill" style="width:${overall.percent}%;"></div></div>
                     <p style="text-align:center;">Progress Belajar: ${Math.round(overall.percent)}%</p>
                 </div>
             `;
+            
             if (currentUser.canRefer) {
-                html += `<div class="card referral-active" style="background:#d4edda; border:1px solid #27ae60; border-radius:16px; padding:10px; margin-top:10px; text-align:center;"><h3>Program Reseller - AKTIF!</h3><p>Kode Referral: <code style="font-size:1.2rem;">${currentUser.referralCode}</code></p><button onclick="copyReferral()" class="btn-copy">Salin Kode Referral</button></div>`;
+                html += `<div class="card" style="background:#d4edda; border:1px solid #27ae60; border-radius:16px; padding:15px; text-align:center;"><h3>Program Reseller - AKTIF!</h3><p>Kode referral Anda sudah aktif! Bagikan ke teman dan dapatkan komisi.</p><button onclick="copyReferral()" class="btn-copy">Salin Kode Referral</button></div>`;
             } else {
-                html += `<div class="card referral-inactive" style="background:#fff3cd; border:1px solid #ffc107; border-radius:16px; padding:10px; margin-top:10px; text-align:center;"><h3>Program Reseller - Belum Aktif</h3><p>Kode Referral sementara: <code>${currentUser.referralCode}</code> (belum aktif)</p><p>Selesaikan 1 kursus penuh dengan nilai quiz minimal 7 untuk mengaktifkan!</p></div>`;
+                html += `<div class="card" style="background:#fff3cd; border:1px solid #ffc107; border-radius:16px; padding:15px; text-align:center;"><h3>Program Reseller - Belum Aktif</h3><p>Selesaikan 1 kursus penuh dengan nilai minimal 7 untuk mengaktifkan program reseller!</p></div>`;
             }
+            
             document.getElementById("appRoot").innerHTML = html;
+            
             document.getElementById("coursesTab").onclick = () => renderStorePage();
             document.getElementById("progressTab").onclick = () => renderProgressPage();
             document.getElementById("walletTab").onclick = () => renderWalletPage();
             document.getElementById("certificateTab").onclick = () => renderCertificatePage();
             document.getElementById("reportTab").onclick = () => renderReportPage();
+            document.getElementById("resellerTab").onclick = () => renderResellerInfo();
             document.getElementById("logoutTab").onclick = async () => { await supabaseClient.auth.signOut(); currentUser = null; window.location.hash = "#landing"; };
         }
         
         async function renderStorePage() {
-            let html = `<div class="tabs"><div class="tab" id="backToDash">Kembali</div><div class="tab active">Beli Kursus</div></div>
-                <div class="card" style="text-align:center;"><h2>Beli Kursus dengan Wallet</h2><p>Saldo Anda: <strong style="color:#27ae60;">${formatRupiah(currentUser.walletBalance)}</strong></p>
-                ${!currentUser.isBundle ? `<button class="btn-warning" id="buyBundleBtn" style="background:#f39c12;">Beli Bundle (${formatRupiah(getDiscountedPrice(800000))}) - Akses Semua Kursus</button>` : '<div class="alert-success">Anda sudah memiliki BUNDLE! Akses semua kursus gratis.</div>'}</div>
-                <div class="course-grid">${coursesData.map(c => { const owned = isCourseOwned(c.id); const price = getDiscountedPrice(c.price); return `<div class="course-card ${owned ? 'owned' : ''}"><div class="course-icon">${c.icon || '📚'}</div><div class="course-title">${c.title}</div><p>${c.description || ''}</p><div class="course-price">${formatRupiah(c.price)}</div>${owned ? '<div class="owned-badge" style="position:absolute; top:10px; right:10px; background:#27ae60; color:white; padding:5px 10px; border-radius:20px; font-size:0.7rem;">Dimiliki</div>' : '<div class="lock-badge" style="position:absolute; top:10px; right:10px; background:rgba(0,0,0,0.7); color:white; padding:5px 10px; border-radius:20px; font-size:0.7rem;">Belum dimiliki</div>'}<div class="btn-group" style="margin-top:10px;">${owned ? `<button class="btn-primary study-course" data-id="${c.id}">Belajar</button>` : `<button class="btn-buy buy-course" style="background:#27ae60;" data-id="${c.id}" data-price="${price}">Beli (${formatRupiah(price)})</button>`}${c.telegram_group ? `<a href="${c.telegram_group}" target="_blank" class="btn-telegram" style="background:#0088cc; color:white; padding:12px 20px; border-radius:40px; text-decoration:none; display:inline-block;">Grup Diskusi</a>` : ''}</div></div>`; }).join('')}</div>`;
+            let html = `
+                <div class="tabs">
+                    <div class="tab" id="backToDash">Kembali</div>
+                    <div class="tab active">Beli Kursus</div>
+                </div>
+                <div class="card" style="text-align:center;">
+                    <h2>Beli Kursus dengan Wallet</h2>
+                    <p>Saldo Anda: <strong style="color:#27ae60;">${formatRupiah(currentUser.walletBalance)}</strong></p>
+                    ${!currentUser.isBundle ? `<button id="buyBundleBtn" class="btn-warning" style="background:#f39c12;">Beli Bundle (${formatRupiah(getDiscountedPrice(800000))}) - Akses Semua Kursus</button>` : '<div class="alert-success">Anda sudah memiliki BUNDLE! Akses semua kursus gratis.</div>'}
+                </div>
+                <div class="course-grid">
+                    ${coursesData.map(c => {
+                        const owned = isCourseOwned(c.id);
+                        const price = getDiscountedPrice(c.price);
+                        return `
+                            <div class="course-card ${owned ? 'owned' : ''}">
+                                <div class="course-icon">${c.icon || '📚'}</div>
+                                <div class="course-title">${c.title}</div>
+                                <p>${c.description || ''}</p>
+                                <div class="course-price">${formatRupiah(c.price)}</div>
+                                ${owned ? '<div class="owned-badge">Dimiliki</div>' : '<div class="lock-badge">Belum dimiliki</div>'}
+                                <div class="btn-group">
+                                    ${owned ? `<button class="btn-primary study-course" data-id="${c.id}">Belajar</button>` : `<button class="btn-buy buy-course" style="background:#27ae60;" data-id="${c.id}" data-price="${price}">Beli (${formatRupiah(price)})</button>`}
+                                    ${c.telegram_group ? `<a href="${c.telegram_group}" target="_blank" class="btn-telegram" style="background:#0088cc; color:white; padding:12px 20px; border-radius:40px; text-decoration:none;">Grup Diskusi</a>` : ''}
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
             document.getElementById("appRoot").innerHTML = html;
             document.getElementById("backToDash").onclick = () => renderUserDashboard();
             if (document.getElementById("buyBundleBtn")) document.getElementById("buyBundleBtn").onclick = async () => { await purchaseBundle(); renderStorePage(); };
@@ -665,10 +735,32 @@
             let completed = currentUser.completedLessons[currentCourseForUser.id] || [];
             let totalLessons = (currentCourseForUser.lessons || []).length;
             let percent = totalLessons > 0 ? (completed.length / totalLessons) * 100 : 0;
-            let html = `<div class="tabs"><div class="tab" id="backToStore">Kembali ke Toko</div><div class="tab active">${currentCourseForUser.title}</div></div>
-                <div class="card"><h3>${currentCourseForUser.title}</h3><div class="progress-bar"><div class="progress-fill" style="width:${percent}%;"></div></div><p>${completed.length}/${totalLessons} materi selesai</p>
-                <div class="lesson-list">${(currentCourseForUser.lessons || []).map((l, idx) => `<div class="lesson-item ${completed.includes(idx) ? 'completed' : ''}" data-idx="${idx}"><span>${idx+1}. ${l.title}</span><span>${completed.includes(idx) ? 'Selesai' : 'Belum'}</span></div>`).join('')}</div>
-                ${currentCourseForUser.telegram_group ? `<div class="group-card" style="background:#0088cc; color:white; border-radius:20px; padding:20px; margin-top:20px; text-align:center;"><strong>Grup Diskusi & Tugas</strong><p>Diskusikan materi dan kumpulkan tugas di grup Telegram:</p><a href="${currentCourseForUser.telegram_group}" target="_blank" style="color:white; background:rgba(255,255,255,0.2); padding:8px 20px; border-radius:40px; text-decoration:none; display:inline-block; margin-top:10px;">Join Grup Telegram</a></div>` : ''}</div>`;
+            let html = `
+                <div class="tabs">
+                    <div class="tab" id="backToStore">Kembali ke Toko</div>
+                    <div class="tab active">${currentCourseForUser.title}</div>
+                </div>
+                <div class="card">
+                    <h3>${currentCourseForUser.title}</h3>
+                    <div class="progress-bar"><div class="progress-fill" style="width:${percent}%;"></div></div>
+                    <p>${completed.length}/${totalLessons} materi selesai</p>
+                    <div class="lesson-list">
+                        ${(currentCourseForUser.lessons || []).map((l, idx) => `
+                            <div class="lesson-item ${completed.includes(idx) ? 'completed' : ''}" data-idx="${idx}">
+                                <span>${idx+1}. ${l.title}</span>
+                                <span>${completed.includes(idx) ? 'Selesai' : 'Belum'}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                    ${currentCourseForUser.telegram_group ? `
+                        <div class="group-card" style="background:#0088cc; color:white; border-radius:20px; padding:20px; margin-top:20px; text-align:center;">
+                            <strong>Grup Diskusi & Tugas</strong>
+                            <p>Diskusikan materi dan kumpulkan tugas di grup Telegram:</p>
+                            <a href="${currentCourseForUser.telegram_group}" target="_blank" style="color:white; background:rgba(255,255,255,0.2); padding:8px 20px; border-radius:40px; text-decoration:none;">Join Grup Telegram</a>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
             document.getElementById("appRoot").innerHTML = html;
             document.getElementById("backToStore").onclick = () => renderStorePage();
             document.querySelectorAll(".lesson-item").forEach(item => { item.onclick = () => { selectedLessonIndex = parseInt(item.getAttribute("data-idx")); renderLessonDetail(); }; });
@@ -678,10 +770,18 @@
             let lesson = currentCourseForUser.lessons[selectedLessonIndex];
             let completed = currentUser.completedLessons[currentCourseForUser.id] || [];
             let isCompleted = completed.includes(selectedLessonIndex);
-            let html = `<div class="tabs"><div class="tab" id="backToCourse">Kembali</div><div class="tab active">${lesson.title}</div><div class="tab" id="quizTab">Quiz</div></div>
-                <div class="card">${lesson.videoUrl ? `<div class="video-wrapper"><iframe src="${lesson.videoUrl}" frameborder="0" allowfullscreen></iframe></div>` : '<div class="alert-info">Materi akan segera ditambahkan</div>'}
-                ${!isCompleted ? `<button class="btn-success" id="markComplete">Tandai Selesai</button>` : '<div class="alert-success">Materi sudah selesai!</div>'}
-                <button id="backBtn" class="btn-back">Kembali</button></div>`;
+            let html = `
+                <div class="tabs">
+                    <div class="tab" id="backToCourse">Kembali</div>
+                    <div class="tab active">${lesson.title}</div>
+                    <div class="tab" id="quizTab">Quiz</div>
+                </div>
+                <div class="card">
+                    ${lesson.videoUrl ? `<div class="video-wrapper"><iframe src="${lesson.videoUrl}" frameborder="0" allowfullscreen></iframe></div>` : '<div class="alert-info">Materi akan segera ditambahkan</div>'}
+                    ${!isCompleted ? `<button class="btn-success" id="markComplete">Tandai Selesai</button>` : '<div class="alert-success">Materi sudah selesai!</div>'}
+                    <button id="backBtn" class="btn-back">Kembali</button>
+                </div>
+            `;
             document.getElementById("appRoot").innerHTML = html;
             document.getElementById("backToCourse").onclick = () => renderLearningView();
             document.getElementById("backBtn").onclick = () => renderLearningView();
@@ -706,11 +806,27 @@
             if (!lesson.quiz) { alert("Belum ada quiz untuk materi ini."); renderLessonDetail(); return; }
             let existing = localStorage.getItem(`quiz_${currentUser.id}_${currentCourseForUser.id}_${selectedLessonIndex}`);
             if (existing) { alert(`Anda sudah mengerjakan quiz ini dengan nilai: ${existing}/10`); renderLessonDetail(); return; }
-            let html = `<div class="tabs"><div class="tab" id="backToLesson">Kembali</div><div class="tab active">Quiz: ${lesson.title}</div></div>
-                <div class="card"><form id="quizForm">${lesson.quiz.map((q, idx) => `<div class="form-group"><label>${idx+1}. ${q.q}</label>${q.opt.map((o, oi) => `<div><input type="radio" name="q${idx}" value="${oi}"> ${o}</div>`).join('')}</div>`).join('')}<button type="submit" class="btn-success">Kirim Jawaban</button></form><div id="quizResult"></div></div>`;
+            let html = `
+                <div class="tabs">
+                    <div class="tab" id="backToLesson">Kembali</div>
+                    <div class="tab active">Quiz: ${lesson.title}</div>
+                </div>
+                <div class="card">
+                    <form id="quizForm">
+                        ${lesson.quiz.map((q, idx) => `
+                            <div class="form-group">
+                                <label>${idx+1}. ${q.q}</label>
+                                ${q.opt.map((o, oi) => `<div><input type="radio" name="q${idx}" value="${oi}"> ${o}</div>`).join('')}
+                            </div>
+                        `).join('')}
+                        <button type="submit" class="btn-success">Kirim Jawaban</button>
+                    </form>
+                    <div id="quizResult"></div>
+                </div>
+            `;
             document.getElementById("appRoot").innerHTML = html;
             document.getElementById("backToLesson").onclick = () => renderLessonDetail();
-            document.getElementById("quizForm").onsubmit = async (e) => {
+            document.getElementById("quizForm").onsubmit = (e) => {
                 e.preventDefault();
                 let score = 0;
                 lesson.quiz.forEach((q, idx) => { let sel = document.querySelector(`input[name="q${idx}"]:checked`); if (sel && parseInt(sel.value) === q.jawab) score++; });
@@ -720,7 +836,7 @@
                     if (!completed.includes(selectedLessonIndex)) {
                         completed.push(selectedLessonIndex);
                         currentUser.completedLessons[currentCourseForUser.id] = completed;
-                        await supabaseClient.from('user_progress').upsert({ user_id: currentUser.id, course_id: currentCourseForUser.id, completed_lessons: completed });
+                        supabaseClient.from('user_progress').upsert({ user_id: currentUser.id, course_id: currentCourseForUser.id, completed_lessons: completed });
                     }
                     document.getElementById("quizResult").innerHTML = `<div class="alert-success">Lulus! Nilai: ${score}/10</div>`;
                     setTimeout(() => { renderLearningView(); }, 2000);
@@ -732,18 +848,43 @@
         
         async function renderProgressPage() {
             await checkAndUpdateReferralStatus();
-            let html = `<div class="tabs"><div class="tab" id="backToDash">Kembali</div><div class="tab active">Progress Belajar</div></div>
-                <div class="card"><h2>Statistik Belajar Anda</h2>${coursesData.filter(c => isCourseOwned(c.id)).map(course => { let progress = getCourseProgress(course.id); return `<div style="margin-bottom:20px;"><strong>${course.title}</strong><div class="progress-bar"><div class="progress-fill" style="width:${progress.percent}%;"></div></div><span>${progress.completed}/${progress.total} materi</span></div>`; }).join('')}</div>
-                <div class="card"><h2>Status Program Reseller</h2>${currentUser.canRefer ? `<div class="alert-success">Status: AKTIF! Kode referral Anda sudah bisa dibagikan.</div>` : `<div class="alert-warning">Status: BELUM AKTIF. Selesaikan 1 kursus penuh dengan nilai minimal 7 untuk mengaktifkan program reseller.</div>`}</div>`;
+            let html = `
+                <div class="tabs">
+                    <div class="tab" id="backToDash">Kembali</div>
+                    <div class="tab active">Progress Belajar</div>
+                </div>
+                <div class="card">
+                    <h2>Statistik Belajar Anda</h2>
+                    ${coursesData.filter(c => isCourseOwned(c.id)).map(course => { let progress = getCourseProgress(course.id); return `<div style="margin-bottom:20px;"><strong>${course.title}</strong><div class="progress-bar"><div class="progress-fill" style="width:${progress.percent}%;"></div></div><span>${progress.completed}/${progress.total} materi</span></div>`; }).join('')}
+                </div>
+                <div class="card">
+                    <h2>Status Program Reseller</h2>
+                    ${currentUser.canRefer ? '<div class="alert-success">Status: AKTIF! Kode referral Anda sudah bisa dibagikan.</div>' : '<div class="alert-warning">Status: BELUM AKTIF. Selesaikan 1 kursus penuh dengan nilai minimal 7 untuk mengaktifkan program reseller.</div>'}
+                </div>
+            `;
             document.getElementById("appRoot").innerHTML = html;
             document.getElementById("backToDash").onclick = () => renderUserDashboard();
         }
         
         async function renderWalletPage() {
-            let html = `<div class="tabs"><div class="tab" id="backToDash">Kembali</div><div class="tab active">Wallet</div><div class="tab" id="topUpTab">Top Up</div><div class="tab" id="ppobTab">PPOB</div></div>
-                <div class="card" style="text-align:center;"><h2>Saldo Wallet</h2><div style="font-size:2rem; color:#27ae60;">${formatRupiah(currentUser.walletBalance)}</div>
-                <div class="btn-group" style="margin-top:20px;"><button id="topUp10Btn" class="btn-success">+ Rp 10.000</button><button id="topUp50Btn" class="btn-success">+ Rp 50.000</button><button id="topUp100Btn" class="btn-success">+ Rp 100.000</button></div>
-                <button id="topUpCustomBtn" class="btn-edit" style="margin-top:10px;">Top Up Custom</button></div>`;
+            let html = `
+                <div class="tabs">
+                    <div class="tab" id="backToDash">Kembali</div>
+                    <div class="tab active">Wallet</div>
+                    <div class="tab" id="topUpTab">Top Up</div>
+                    <div class="tab" id="ppobTab">PPOB</div>
+                </div>
+                <div class="card" style="text-align:center;">
+                    <h2>Saldo Wallet</h2>
+                    <div style="font-size:2rem; color:#27ae60;">${formatRupiah(currentUser.walletBalance)}</div>
+                    <div class="btn-group" style="margin-top:20px;">
+                        <button id="topUp10Btn" class="btn-success">+ Rp 10.000</button>
+                        <button id="topUp50Btn" class="btn-success">+ Rp 50.000</button>
+                        <button id="topUp100Btn" class="btn-success">+ Rp 100.000</button>
+                    </div>
+                    <button id="topUpCustomBtn" class="btn-edit" style="margin-top:10px;">Top Up Custom</button>
+                </div>
+            `;
             document.getElementById("appRoot").innerHTML = html;
             document.getElementById("backToDash").onclick = () => renderUserDashboard();
             document.getElementById("topUpTab").onclick = () => renderTopUpPage();
@@ -755,38 +896,72 @@
         }
         
         async function renderTopUpPage() {
-            let html = `<div class="tabs"><div class="tab" id="backToWallet">Kembali ke Wallet</div><div class="tab active">Top Up Wallet</div></div>
-                <div class="card" style="text-align:center;"><h2>Top Up Wallet</h2><div class="alert-info">Pilih nominal top up:</div>
-                <div class="btn-group"><button id="topUp10Btn" class="btn-success">Rp 10.000</button><button id="topUp50Btn" class="btn-success">Rp 50.000</button><button id="topUp100Btn" class="btn-success">Rp 100.000</button><button id="topUpCustomBtn" class="btn-edit">Custom</button></div>
-                <hr><div class="alert-warning">Transfer ke rekening berikut: <strong>${BANK_ACCOUNT}</strong><br>Wajib tulis pesan: <strong>TOPUP AOC - ${currentUser.name}</strong></div>
-                <div style="margin:20px 0;"><img src="${QRIS_IMAGE_URL}" alt="QRIS Code" style="max-width:200px; border:1px solid #ddd; border-radius:12px; padding:10px;"></div>
-                <div class="alert-info">Setelah transfer, upload bukti transfer di bawah ini:</div>
-                <form id="topUpForm"><div class="form-group"><label>Nominal</label><input type="number" id="amount" min="10000" required></div><div class="form-group"><label>Upload Bukti Transfer</label><input type="file" id="proof" accept="image/*" required></div><button type="submit" class="btn-success">Kirim Request Top Up</button></form></div>`;
+            let html = `
+                <div class="tabs">
+                    <div class="tab" id="backToWallet">Kembali ke Wallet</div>
+                    <div class="tab active">Top Up Wallet</div>
+                </div>
+                <div class="card" style="text-align:center;">
+                    <h2>Top Up Wallet</h2>
+                    <div class="alert-info">Pilih nominal top up:</div>
+                    <div class="btn-group">
+                        <button id="topUp10Btn" class="btn-success">Rp 10.000</button>
+                        <button id="topUp50Btn" class="btn-success">Rp 50.000</button>
+                        <button id="topUp100Btn" class="btn-success">Rp 100.000</button>
+                        <button id="topUpCustomBtn" class="btn-edit">Custom</button>
+                    </div>
+                    <hr>
+                    <div class="alert-warning">
+                        <strong>Transfer ke rekening berikut:</strong><br>
+                        ${BANK_ACCOUNT}<br>
+                        <strong>Wajib tulis pesan:</strong> TOPUP AOC - ${currentUser.name}
+                    </div>
+                    <div style="margin:20px 0;">
+                        <img src="${QRIS_IMAGE_URL}" alt="QRIS Code" style="max-width:250px; border:1px solid #ddd; border-radius:12px; padding:10px;">
+                    </div>
+                    <div class="alert-info">Setelah transfer, upload bukti transfer di bawah ini:</div>
+                    <form id="topUpForm">
+                        <div class="form-group"><label>Nominal</label><input type="number" id="amount" min="10000" required></div>
+                        <div class="form-group"><label>Upload Bukti Transfer</label><input type="file" id="proof" accept="image/*" required></div>
+                        <button type="submit" class="btn-success">Kirim Request Top Up</button>
+                    </form>
+                </div>
+            `;
             document.getElementById("appRoot").innerHTML = html;
             document.getElementById("backToWallet").onclick = () => renderWalletPage();
             document.getElementById("topUp10Btn").onclick = () => { document.getElementById("amount").value = 10000; };
             document.getElementById("topUp50Btn").onclick = () => { document.getElementById("amount").value = 50000; };
             document.getElementById("topUp100Btn").onclick = () => { document.getElementById("amount").value = 100000; };
-            document.getElementById("topUpCustomBtn").onclick = () => { let amt = prompt("Masukkan nominal:"); if (amt && parseInt(amt) >= 10000) document.getElementById("amount").value = parseInt(amt); else alert("Minimal Rp 10.000"); };
+            document.getElementById("topUpCustomBtn").onclick = () => { let amt = prompt("Masukkan nominal:", "50000"); if (amt && parseInt(amt) >= 10000) document.getElementById("amount").value = parseInt(amt); else alert("Minimal Rp 10.000"); };
             document.getElementById("topUpForm").onsubmit = async (e) => {
                 e.preventDefault();
                 let amount = parseInt(document.getElementById("amount").value);
                 let file = document.getElementById("proof").files[0];
                 if (!file) { alert("Upload bukti transfer!"); return; }
-                let proofUrl = URL.createObjectURL(file);
+                let proofUrl = await uploadToImgBB(file);
                 await requestTopUp(amount, proofUrl);
                 renderWalletPage();
             };
         }
         
         async function renderPPOBPage() {
-            let html = `<div class="tabs"><div class="tab" id="backToWallet">Kembali ke Wallet</div><div class="tab active">PPOB - Beli Pulsa & Token</div></div>
-                <div class="card"><h2>Beli Pulsa</h2><div class="course-grid"><div class="course-card"><div class="course-icon">📱</div><div class="course-title">Pulsa 10rb</div><div class="course-price">Rp 10.500</div><button class="btn-buy buy-pulsa" data-price="10500" data-sku="pulsa10k">Beli</button></div>
-                <div class="course-card"><div class="course-icon">📱</div><div class="course-title">Pulsa 20rb</div><div class="course-price">Rp 20.500</div><button class="btn-buy buy-pulsa" data-price="20500" data-sku="pulsa20k">Beli</button></div>
-                <div class="course-card"><div class="course-icon">📱</div><div class="course-title">Pulsa 50rb</div><div class="course-price">Rp 50.500</div><button class="btn-buy buy-pulsa" data-price="50500" data-sku="pulsa50k">Beli</button></div>
-                <div class="course-card"><div class="course-icon">⚡</div><div class="course-title">Token PLN 50rb</div><div class="course-price">Rp 50.500</div><button class="btn-buy buy-pln" data-price="50500" data-sku="pln50rb">Beli</button></div>
-                <div class="course-card"><div class="course-icon">⚡</div><div class="course-title">Token PLN 100rb</div><div class="course-price">Rp 100.500</div><button class="btn-buy buy-pln" data-price="100500" data-sku="pln100rb">Beli</button></div></div>
-                <div class="alert-warning">⚠️ Demo Mode: Verifikasi manual. Admin akan memproses setelah bukti transfer diterima.</div></div>`;
+            let html = `
+                <div class="tabs">
+                    <div class="tab" id="backToWallet">Kembali ke Wallet</div>
+                    <div class="tab active">PPOB - Beli Pulsa & Token</div>
+                </div>
+                <div class="card">
+                    <h2>Beli Pulsa</h2>
+                    <div class="course-grid">
+                        <div class="course-card"><div class="course-icon">📱</div><div class="course-title">Pulsa 10rb</div><div class="course-price">Rp 10.500</div><button class="btn-buy buy-pulsa" data-price="10500" data-sku="pulsa10k">Beli</button></div>
+                        <div class="course-card"><div class="course-icon">📱</div><div class="course-title">Pulsa 20rb</div><div class="course-price">Rp 20.500</div><button class="btn-buy buy-pulsa" data-price="20500" data-sku="pulsa20k">Beli</button></div>
+                        <div class="course-card"><div class="course-icon">📱</div><div class="course-title">Pulsa 50rb</div><div class="course-price">Rp 50.500</div><button class="btn-buy buy-pulsa" data-price="50500" data-sku="pulsa50k">Beli</button></div>
+                        <div class="course-card"><div class="course-icon">⚡</div><div class="course-title">Token PLN 50rb</div><div class="course-price">Rp 50.500</div><button class="btn-buy buy-pln" data-price="50500" data-sku="pln50rb">Beli</button></div>
+                        <div class="course-card"><div class="course-icon">⚡</div><div class="course-title">Token PLN 100rb</div><div class="course-price">Rp 100.500</div><button class="btn-buy buy-pln" data-price="100500" data-sku="pln100rb">Beli</button></div>
+                    </div>
+                    <div class="alert-warning">Mode Demo: Verifikasi manual. Admin akan memproses setelah bukti transfer diterima.</div>
+                </div>
+            `;
             document.getElementById("appRoot").innerHTML = html;
             document.getElementById("backToWallet").onclick = () => renderWalletPage();
             document.querySelectorAll(".buy-pulsa, .buy-pln").forEach(btn => {
@@ -794,7 +969,6 @@
                     let price = parseInt(btn.getAttribute("data-price"));
                     if (currentUser.walletBalance < price) { alert(`Saldo tidak cukup! Saldo: ${formatRupiah(currentUser.walletBalance)}`); return; }
                     if (!confirm(`Beli produk seharga ${formatRupiah(price)}?`)) return;
-                    // Demo: langsung kurangi saldo
                     let newBalance = currentUser.walletBalance - price;
                     await supabaseClient.from('profiles').update({ wallet_balance: newBalance }).eq('user_id', currentUser.id);
                     currentUser.walletBalance = newBalance;
@@ -807,71 +981,55 @@
         async function renderCertificatePage() {
             let ownedCourses = coursesData.filter(c => isCourseOwned(c.id));
             let completedCourses = ownedCourses.filter(c => { let completed = currentUser.completedLessons[c.id] || []; return completed.length === (c.lessons || []).length && (c.lessons || []).length > 0; });
-            let html = `<div class="tabs"><div class="tab" id="backToDash">Kembali</div><div class="tab active">Sertifikat Kelulusan</div></div>
-                <div class="card">${completedCourses.length === 0 ? '<div class="alert-warning">Selesaikan semua materi suatu kursus untuk mendapatkan sertifikat.</div>' : ''}
-                ${completedCourses.map(c => `<div style="border:2px solid #f4a261; border-radius:20px; padding:20px; margin-bottom:15px; text-align:center;"><div style="font-size:1.5rem; font-weight:bold;">${escapeHtml(currentUser.name)}</div><div style="font-size:1.2rem; color:#e67e22;">${c.title}</div><p>Telah menyelesaikan program</p><button class="btn-success download-cert" data-title="${c.title}" data-course-id="${c.id}">Download Sertifikat PDF (A4)</button></div>`).join('')}</div>`;
+            let html = `
+                <div class="tabs">
+                    <div class="tab" id="backToDash">Kembali</div>
+                    <div class="tab active">Sertifikat Kelulusan</div>
+                </div>
+                <div class="card">
+                    ${completedCourses.length === 0 ? '<div class="alert-warning">Selesaikan semua materi suatu kursus untuk mendapatkan sertifikat.</div>' : ''}
+                    ${completedCourses.map(c => `
+                        <div style="border:2px solid #f4a261; border-radius:20px; padding:20px; margin-bottom:15px; text-align:center;">
+                            <div style="font-size:1.5rem; font-weight:bold;">${escapeHtml(currentUser.name)}</div>
+                            <div style="font-size:1.2rem; color:#e67e22;">${c.title}</div>
+                            <p>Telah menyelesaikan program</p>
+                            <button class="btn-success download-cert" data-title="${c.title}" data-course-id="${c.id}">Download Sertifikat PDF (A4)</button>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
             document.getElementById("appRoot").innerHTML = html;
             document.getElementById("backToDash").onclick = () => renderUserDashboard();
             document.querySelectorAll(".download-cert").forEach(btn => {
                 btn.onclick = async () => {
                     let courseId = parseInt(btn.getAttribute("data-course-id"));
                     let course = coursesData.find(c => c.id === courseId);
-                    let finalScore = 0;
-                    let totalScore = 0, quizCount = 0;
+                    let finalScore = 0, totalScore = 0, quizCount = 0;
                     for (let i = 0; i < (course.lessons || []).length; i++) {
                         let score = localStorage.getItem(`quiz_${currentUser.id}_${course.id}_${i}`);
                         if (score) { totalScore += parseInt(score); quizCount++; }
                     }
                     finalScore = quizCount > 0 ? Math.round((totalScore / quizCount) * 10) : 0;
                     let certHtml = `
-                        <div class="certificate-container" id="certificatePrint">
+                        <div class="certificate-container">
                             <div class="certificate-border">
                                 <div class="certificate-logo">📖</div>
                                 <div class="certificate-title">ALFARUQ</div>
                                 <div class="certificate-subtitle">Online Course</div>
-                                <div class="certificate-divider"></div>
-                                <div class="certificate-recipient">
-                                    <div class="certificate-recipient-label">Diberikan kepada</div>
-                                    <div class="certificate-recipient-name">${escapeHtml(currentUser.name)}</div>
-                                </div>
+                                <div class="certificate-recipient-name">${escapeHtml(currentUser.name)}</div>
                                 <div class="certificate-course">${escapeHtml(course.title)}</div>
-                                <div class="certificate-description">Telah menyelesaikan program dengan predikat Memuaskan</div>
-                                <div class="certificate-score">Nilai Akhir: ${finalScore} / 100</div>
+                                <p style="text-align:center;">Telah menyelesaikan program dengan predikat Memuaskan</p>
+                                <p style="text-align:center;">Nilai Akhir: ${finalScore} / 100</p>
                                 <div class="certificate-footer">
                                     <div class="certificate-signature"><div class="certificate-signature-line"></div>Pengajar</div>
                                     <div class="certificate-signature"><div class="certificate-signature-line"></div>Direktur</div>
                                 </div>
-                                <div class="certificate-qr"><div id="qrCode"></div></div>
                                 <div class="certificate-id">ID Sertifikat: ${currentUser.id}_${course.id}_${Date.now()}</div>
                             </div>
-                        </div>`;
+                        </div>
+                    `;
                     let win = window.open();
-                    win.document.write(`
-                        <html><head><title>Sertifikat ${course.title}</title>
-                        <style>
-                            * { margin: 0; padding: 0; box-sizing: border-box; }
-                            body { margin: 0; padding: 0; background: white; display: flex; justify-content: center; align-items: center; min-height: 100vh; font-family: 'Times New Roman', Times, serif; }
-                            .certificate-container { width: 210mm; min-height: 297mm; margin: 0 auto; padding: 15mm; background: white; box-sizing: border-box; }
-                            .certificate-border { border: 2px solid #f4a261; padding: 15mm; height: 100%; position: relative; }
-                            .certificate-logo { font-size: 2.5rem; text-align: center; margin-bottom: 10px; }
-                            .certificate-title { text-align: center; font-size: 28pt; color: #1e6b3b; letter-spacing: 4px; margin: 15px 0; font-weight: bold; }
-                            .certificate-subtitle { text-align: center; font-size: 16pt; color: #666; margin-bottom: 20px; }
-                            .certificate-divider { width: 80px; height: 3px; background: #f4a261; margin: 15px auto; }
-                            .certificate-recipient { text-align: center; margin: 25px 0; }
-                            .certificate-recipient-label { font-size: 12pt; color: #666; }
-                            .certificate-recipient-name { font-size: 28pt; font-weight: bold; color: #2c3e50; margin: 10px 0; }
-                            .certificate-course { text-align: center; font-size: 18pt; color: #e67e22; margin: 20px 0; font-weight: bold; }
-                            .certificate-description { text-align: center; font-size: 12pt; color: #555; margin: 20px 0; line-height: 1.6; }
-                            .certificate-score { text-align: center; font-size: 14pt; margin: 10px 0; }
-                            .certificate-footer { margin-top: 40px; display: flex; justify-content: space-between; }
-                            .certificate-signature { text-align: center; width: 45%; }
-                            .certificate-signature-line { border-top: 1px solid #333; width: 80%; margin: 30px auto 10px; }
-                            .certificate-qr { text-align: center; margin-top: 20px; }
-                            .certificate-id { text-align: center; font-size: 9pt; color: #999; margin-top: 15px; }
-                            @media print { body { margin: 0; padding: 0; } .certificate-container { margin: 0; padding: 0; } }
-                        </style>
-                        </head><body>${certHtml}<script>window.onload = function() { setTimeout(function() { window.print(); window.close(); }, 500); };<\/script></body></html>
-                    `);
+                    win.document.write(`<html><head><title>Sertifikat ${course.title}</title><style>body { margin:0; padding:0; font-family:'Times New Roman',Times,serif; } .certificate-container { width:210mm; min-height:297mm; margin:0 auto; padding:15mm; background:white; box-sizing:border-box; } .certificate-border { border:2px solid #f4a261; padding:15mm; height:100%; } .certificate-logo { font-size:2.5rem; text-align:center; } .certificate-title { text-align:center; font-size:28pt; color:#1e6b3b; margin:15px 0; } .certificate-recipient-name { font-size:28pt; font-weight:bold; text-align:center; margin:20px 0; } .certificate-course { font-size:18pt; color:#e67e22; text-align:center; margin:20px 0; } .certificate-footer { display:flex; justify-content:space-between; margin-top:40px; } .certificate-signature { text-align:center; width:45%; } .certificate-signature-line { border-top:1px solid #333; width:80%; margin:30px auto 10px; } .certificate-id { text-align:center; font-size:9pt; color:#999; margin-top:15px; } @media print { body { margin:0; padding:0; } }</style></head><body>${certHtml}<script>window.onload=function(){setTimeout(function(){window.print();window.close();},500);};<\/script></body></html>`);
                     win.document.close();
                 };
             });
@@ -879,97 +1037,333 @@
         
         async function renderReportPage() {
             let earned = currentUser.earnedBadges || [];
-            let html = `<div class="tabs"><div class="tab" id="backToDash">Kembali</div><div class="tab active">Rapor & Badge</div></div>
-                <div class="card"><h2>🏆 Badge yang Diperoleh</h2><div class="badge-list">${badgesData.map(b => `<div class="badge-item ${earned.includes(b.id) ? 'earned' : ''}"><div class="badge-icon">${b.icon || '🏅'}</div><div><strong>${b.name}</strong></div><small>${b.requirement}</small>${earned.includes(b.id) ? '<div style="color:#27ae60;">Didapat</div>' : '<div style="color:#999;">Belum</div>'}</div>`).join('')}</div></div>
-                <div class="card"><h2>📝 Rapor Nilai</h2><table class="report-table" style="width:100%; border-collapse:collapse;"><thead><tr style="background:#1e6b3b; color:white;"><th style="padding:8px;">Kursus</th><th>Materi</th><th>Nilai Quiz</th><th>Nilai Praktik</th></tr></thead><tbody>${(currentUser.scores || []).map(s => { let course = coursesData.find(c => c.id === s.course_id); let lesson = course?.lessons[s.lesson_id]; return `<tr><td style="padding:8px; border:1px solid #ddd;">${course?.title || '-'}</td><td style="padding:8px; border:1px solid #ddd;">${lesson?.title || '-'}</td><td style="padding:8px; border:1px solid #ddd;">${s.quiz_score || '-'}</td><td style="padding:8px; border:1px solid #ddd;">${s.practical_score || '-'}</td></tr>`; }).join('') || '<tr><td colspan="4">Belum ada nilai</td></tr>'}</tbody></table>
-                <button id="downloadReportBtn" class="btn-success" style="margin-top:15px;">Download Rapor PDF (A4)</button></div>`;
+            let html = `
+                <div class="tabs">
+                    <div class="tab" id="backToDash">Kembali</div>
+                    <div class="tab active">Rapor & Badge</div>
+                </div>
+                <div class="card">
+                    <h2>Badge yang Diperoleh</h2>
+                    <div class="badge-container">
+                        ${badgesData.map(b => `
+                            <div class="badge-item ${earned.includes(b.id) ? 'earned' : ''}">
+                                <div class="badge-icon">${b.icon || '🏅'}</div>
+                                <div><strong>${b.name}</strong></div>
+                                <small>${b.requirement}</small>
+                                ${earned.includes(b.id) ? '<div style="color:#27ae60;">Didapat</div>' : '<div style="color:#999;">Belum</div>'}
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+                <div class="card">
+                    <h2>Rapor Nilai</h2>
+                    <table class="report-table">
+                        <thead><tr style="background:#1e6b3b; color:white;"><th>Kursus</th><th>Materi</th><th>Nilai Quiz</th><th>Nilai Praktik</th></tr></thead>
+                        <tbody>
+                            ${(currentUser.scores || []).map(s => { let course = coursesData.find(c => c.id === s.course_id); let lesson = course?.lessons[s.lesson_id]; return `<tr><td>${course?.title || '-'}</td><td>${lesson?.title || '-'}</td><td>${s.quiz_score || '-'}</td><td>${s.practical_score || '-'}</td></tr>`; }).join('') || '<tr><td colspan="4">Belum ada nilai</td></tr>'}
+                        </tbody>
+                    </table>
+                    <button id="downloadReportBtn" class="btn-success" style="margin-top:15px;">Download Rapor PDF (A4)</button>
+                </div>
+            `;
             document.getElementById("appRoot").innerHTML = html;
             document.getElementById("backToDash").onclick = () => renderUserDashboard();
             document.getElementById("downloadReportBtn").onclick = () => {
                 let reportHtml = `
-                    <div class="report-container" id="reportPrint">
-                        <div class="report-header"><div class="report-title">ALFARUQ ONLINE COURSE</div><div class="report-subtitle">Laporan Hasil Belajar</div></div>
-                        <div class="report-section"><div class="report-section-title">Informasi Peserta</div><p><strong>Nama:</strong> ${escapeHtml(currentUser.name)}</p><p><strong>Email:</strong> ${currentUser.email}</p><p><strong>Tanggal:</strong> ${new Date().toLocaleDateString('id-ID')}</p></div>
-                        <div class="report-section"><div class="report-section-title">Nilai Per Materi</div><table class="report-table" style="width:100%; border-collapse:collapse;"><thead><tr style="background:#1e6b3b; color:white;"><th>Kursus</th><th>Materi</th><th>Nilai Quiz</th><th>Status</th></tr></thead><tbody>${coursesData.filter(c => isCourseOwned(c.id)).flatMap(c => (c.lessons || []).map((l, idx) => { let score = localStorage.getItem(`quiz_${currentUser.id}_${c.id}_${idx}`); let status = score && parseInt(score) >= 7 ? 'Lulus' : 'Belum'; return `<tr><td>${c.title}</td><td>${l.title}</td><td>${score ? (parseInt(score) * 10) : '-'}</td><td>${status}</td></tr>`; })).join('')}</tbody></table></div>
-                        <div class="report-section"><div class="report-section-title">Badge yang Diperoleh</div><div class="badge-list">${badgesData.filter(b => earned.includes(b.id)).map(b => `<div class="badge-item earned"><div class="badge-icon">${b.icon}</div><div>${b.name}</div></div>`).join('') || 'Belum ada badge'}</div></div>
-                    </div>`;
+                    <div class="report-container">
+                        <div class="report-title">ALFARUQ ONLINE COURSE</div>
+                        <div style="text-align:center; margin-bottom:20px;">Laporan Hasil Belajar</div>
+                        <div class="report-section">
+                            <div class="report-section-title">Informasi Peserta</div>
+                            <p><strong>Nama:</strong> ${escapeHtml(currentUser.name)}</p>
+                            <p><strong>Email:</strong> ${currentUser.email}</p>
+                            <p><strong>Tanggal:</strong> ${new Date().toLocaleDateString('id-ID')}</p>
+                        </div>
+                        <div class="report-section">
+                            <div class="report-section-title">Nilai Per Materi</div>
+                            <table class="report-table">
+                                <thead><tr><th>Kursus</th><th>Materi</th><th>Nilai Quiz</th><th>Status</th></tr></thead>
+                                <tbody>
+                                    ${coursesData.filter(c => isCourseOwned(c.id)).flatMap(c => (c.lessons || []).map((l, idx) => { let score = localStorage.getItem(`quiz_${currentUser.id}_${c.id}_${idx}`); let status = score && parseInt(score) >= 7 ? 'Lulus' : 'Belum'; return `<tr><td>${c.title}</td><td>${l.title}</td><td>${score ? (parseInt(score) * 10) : '-'}</td><td>${status}</td></tr>`; })).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="report-section">
+                            <div class="report-section-title">Badge yang Diperoleh</div>
+                            <div class="badge-container">
+                                ${badgesData.filter(b => earned.includes(b.id)).map(b => `<div class="badge-item earned"><div class="badge-icon">${b.icon}</div><div>${b.name}</div></div>`).join('') || 'Belum ada badge'}
+                            </div>
+                        </div>
+                    </div>
+                `;
                 let win = window.open();
-                win.document.write(`
-                    <html><head><title>Rapor ${currentUser.name}</title>
-                    <style>body { font-family: 'Segoe UI', sans-serif; padding: 20px; } .report-container { max-width: 210mm; margin: 0 auto; } .report-header { text-align: center; margin-bottom: 20px; } .report-title { font-size: 20pt; color: #1e6b3b; font-weight: bold; } .report-section { margin: 15px 0; } .report-section-title { font-size: 14pt; font-weight: bold; border-bottom: 2px solid #1e6b3b; padding-bottom: 5px; margin-bottom: 10px; } .report-table { width: 100%; border-collapse: collapse; } .report-table th, .report-table td { border: 1px solid #ddd; padding: 8px; text-align: left; } .report-table th { background: #1e6b3b; color: white; } .badge-list { display: flex; gap: 15px; flex-wrap: wrap; } .badge-item { text-align: center; padding: 10px; background: #f8f9fa; border-radius: 12px; min-width: 80px; } .badge-item.earned { background: #d4edda; border: 1px solid #27ae60; } .badge-icon { font-size: 2rem; } @media print { body { margin: 0; padding: 0; } }</style>
-                    </head><body>${reportHtml}<script>window.onload = function() { setTimeout(function() { window.print(); window.close(); }, 500); };<\/script></body></html>
-                `);
+                win.document.write(`<html><head><title>Rapor ${currentUser.name}</title><style>body { font-family:'Segoe UI',sans-serif; padding:20px; } .report-container { max-width:210mm; margin:0 auto; } .report-title { font-size:20pt; color:#1e6b3b; font-weight:bold; text-align:center; } .report-section { margin:15px 0; } .report-section-title { font-size:14pt; font-weight:bold; border-bottom:2px solid #1e6b3b; } .report-table { width:100%; border-collapse:collapse; } .report-table th, .report-table td { border:1px solid #ddd; padding:8px; text-align:left; } .badge-container { display:flex; gap:15px; flex-wrap:wrap; } .badge-item { text-align:center; padding:10px; background:#f8f9fa; border-radius:12px; min-width:80px; } .badge-item.earned { background:#d4edda; border:1px solid #27ae60; } .badge-icon { font-size:2rem; } @media print { body { margin:0; padding:0; } }</style></head><body>${reportHtml}<script>window.onload=function(){setTimeout(function(){window.print();window.close();},500);};<\/script></body></html>`);
                 win.document.close();
             };
         }
         
-        function copyReferral() { navigator.clipboard.writeText(window.location.href.split('#')[0] + '?ref=' + currentUser.referralCode); alert("Kode referral disalin!"); }
-        function toggleDarkMode() { let current = document.documentElement.getAttribute("data-theme"); document.documentElement.setAttribute("data-theme", current === "light" ? "dark" : "light"); localStorage.setItem("darkMode", current !== "light"); }
+        function renderResellerInfo() {
+            let html = `
+                <div class="tabs">
+                    <div class="tab" id="backToDash">Kembali</div>
+                    <div class="tab active">Program Reseller</div>
+                </div>
+                <div class="card">
+                    <h2>Status Reseller Anda</h2>
+                    <p>Kode Referral: <code>${currentUser.referralCode}</code></p>
+                    <p>Total Komisi: <strong>${formatRupiah(currentUser.commission || 0)}</strong></p>
+                    <p>Status: ${currentUser.canRefer ? '<span style="color:#27ae60;">AKTIF</span>' : '<span style="color:#e74c3c;">BELUM AKTIF</span>'}</p>
+                    ${!currentUser.canRefer ? '<div class="alert-warning">Selesaikan 1 kursus penuh dengan nilai minimal 7 untuk mengaktifkan program reseller!</div>' : ''}
+                    <h3>Level Komisi</h3>
+                    <table class="commission-table">
+                        <thead>运转<th>Level</th><th>Referral</th><th>Komisi</th></tr></thead>
+                        <tbody>
+                            <tr><td class="badge-gold">BASIC</div><td>0-49</div><td>20%</div></tr>
+                            <tr><td class="badge-gold">BRONZE</div><td>50-99</div><td>25%</div></tr>
+                            </tr><td class="badge-gold">SILVER</div><td>100-499</div><td>30%</div></tr>
+                            <tr><td class="badge-gold">GOLD</div><td>500-999</div><td>35%</div></tr>
+                            <tr><td class="badge-gold">PLATINUM</div><td>1000-4999</div><td>40%</div></tr>
+                            <tr><td class="badge-gold">DIAMOND</div><td>5000+</div><td>50%</div></tr>
+                        </tbody>
+                    </table>
+                    <button id="backBtn" class="btn-back">Kembali</button>
+                </div>
+            `;
+            document.getElementById("appRoot").innerHTML = html;
+            document.getElementById("backToDash").onclick = () => renderUserDashboard();
+            document.getElementById("backBtn").onclick = () => renderUserDashboard();
+        }
+        
+        function copyReferral() { navigator.clipboard.writeText(window.location.href.split('#')[0] + '?ref=' + currentUser.referralCode); alert("Link referral disalin!"); }
+        
+        function toggleDarkMode() {
+            let current = document.documentElement.getAttribute("data-theme");
+            if (current === "light") { document.documentElement.setAttribute("data-theme", "dark"); localStorage.setItem("darkMode", "true"); }
+            else { document.documentElement.setAttribute("data-theme", "light"); localStorage.setItem("darkMode", "false"); }
+            let hash = window.location.hash.slice(1);
+            if (hash === "dashboard" && currentUser) renderUserDashboard();
+            else if (hash === "landing") renderLandingPage();
+        }
         
         // ======================== ADMIN PANEL ========================
         function renderAdminLogin() {
-            let html = `<div class="card"><h2>Admin Login</h2><form id="adminForm"><div class="form-group"><label>Email</label><input type="email" id="adminEmail"></div><div class="form-group"><label>Password</label><input type="password" id="adminPass"></div><button type="submit">Login</button><button onclick="window.location.hash='#landing'" class="btn-outline">Kembali</button></form></div>`;
+            let html = `
+                <div class="card">
+                    <h2>Admin Login</h2>
+                    <form id="adminForm">
+                        <div class="form-group"><label>Email Admin</label><input type="email" id="adminEmail"></div>
+                        <div class="form-group"><label>Password</label><input type="password" id="adminPass"></div>
+                        <button type="submit">Login</button>
+                        <button onclick="window.location.hash='#landing'" class="btn-outline">Kembali</button>
+                    </form>
+                </div>
+            `;
             document.getElementById("appRoot").innerHTML = html;
             document.getElementById("adminForm").onsubmit = async (e) => {
                 e.preventDefault();
-                let email = document.getElementById("adminEmail").value;
-                let password = document.getElementById("adminPass").value;
+                let email = document.getElementById("adminEmail").value, password = document.getElementById("adminPass").value;
                 const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
                 if (error) { alert("Login gagal: " + error.message); return; }
                 currentUser = data.user;
                 await loadUserProfile();
                 await checkAdminStatus();
-                if (isAdmin) window.location.hash = "#admin-dashboard";
-                else { alert("Anda bukan admin"); await supabaseClient.auth.signOut(); }
+                if (isAdmin) { window.location.hash = "#admin-dashboard"; } 
+                else { alert("Akun Anda bukan admin"); await supabaseClient.auth.signOut(); }
             };
         }
         
         async function renderAdminDashboard() {
-            const { data: users } = await supabaseClient.from('profiles').select('*');
+            const { data: pendingUsers } = await supabaseClient.from('profiles').select('*').eq('status', 'pending');
             const { data: topups } = await supabaseClient.from('top_up_requests').select('*').eq('status', 'pending');
-            let html = `<div class="tabs"><div class="tab" id="logoutAdmin">Logout</div><div class="tab active">Admin Panel</div><div class="tab" id="topUpUserTab">Top Up User</div><div class="tab" id="editCourseTab">Edit Kursus</div></div>
-                <div class="card"><h2>Request Top Up (${topups?.length || 0})</h2>${(topups || []).map(t => `<div style="border-bottom:1px solid #eee; padding:10px;"><strong>User ID:</strong> ${t.user_id}<br><strong>Nominal:</strong> ${formatRupiah(t.amount)}<br><a href="${t.proof_url}" target="_blank">Lihat Bukti</a><br><button class="approve-topup" data-id="${t.id}" data-user="${t.user_id}" data-amount="${t.amount}" style="background:#27ae60;">Setujui</button> <button class="reject-topup" data-id="${t.id}" style="background:#e74c3c;">Tolak</button></div>`).join('') || '<p>Tidak ada request top up.</p>'}</div>
-                <div class="card"><h2>Manajemen User</h2><table style="width:100%; border-collapse:collapse;"><thead><tr style="background:#1e6b3b; color:white;"><th>Nama</th><th>Email</th><th>Saldo</th><th>Referral Aktif</th><th>Aksi</th></tr></thead><tbody>${(users || []).map(u => `<tr><td style="padding:8px; border:1px solid #ddd;">${escapeHtml(u.full_name)}</td><td style="padding:8px; border:1px solid #ddd;">${u.user_id}</td><td style="padding:8px; border:1px solid #ddd;">${formatRupiah(u.wallet_balance || 0)}</td><td style="padding:8px; border:1px solid #ddd;">${u.can_refer ? 'Aktif' : 'Belum'}</td><td style="padding:8px; border:1px solid #ddd;"><button class="topup-user" data-id="${u.user_id}" data-name="${escapeHtml(u.full_name)}" style="background:#27ae60;">Top Up</button></td></tr>`).join('')}</tbody></table></div>`;
+            const { data: withdraws } = await supabaseClient.from('withdraw_requests').select('*').eq('status', 'pending');
+            
+            let html = `
+                <div class="tabs">
+                    <div class="tab" id="logoutAdmin">Logout</div>
+                    <div class="tab active">Admin Panel</div>
+                    <div class="tab" id="generalSettingsTab">Pengaturan Umum</div>
+                    <div class="tab" id="editCourseJsonTab">Edit Kursus (JSON)</div>
+                    <div class="tab" id="editCourseUITab">Edit Kursus (UI Form)</div>
+                    <div class="tab" id="salesReportTab">Laporan Penjualan</div>
+                    <div class="tab" id="promoTab">Diskon</div>
+                    <div class="tab" id="financialTab">Laporan Keuangan</div>
+                    <div class="tab" id="practicalTab">Nilai Praktik</div>
+                    <div class="tab" id="studentMgmtTab">Manajemen Peserta</div>
+                    <div class="tab" id="certSettingsTab">Sertifikat</div>
+                    <div class="tab" id="earlyBirdTab">Early Bird</div>
+                </div>
+                <div id="adminContent">
+                    <div class="card">
+                        <h2>Pendaftaran Menunggu (${pendingUsers?.length || 0})</h2>
+                        ${(pendingUsers || []).map(u => `
+                            <div style="border-bottom:1px solid #eee; padding:10px;">
+                                <strong>${u.full_name}</strong> (${u.email})<br>
+                                WhatsApp: ${u.phone || '-'}<br>
+                                <button class="btn-approve" data-user="${u.user_id}" style="background:#27ae60;">Setujui</button>
+                                <button class="btn-reject" data-user="${u.user_id}" style="background:#e74c3c;">Tolak</button>
+                            </div>
+                        `).join('') || '<p>Tidak ada pendaftaran pending.</p>'}
+                    </div>
+                    <div class="card">
+                        <h2>Request Top Up (${topups?.length || 0})</h2>
+                        ${(topups || []).map(t => `
+                            <div style="border-bottom:1px solid #eee; padding:10px;">
+                                <strong>User:</strong> ${t.user_id}<br>
+                                <strong>Nominal:</strong> ${formatRupiah(t.amount)}<br>
+                                <a href="${t.proof_url}" target="_blank">Lihat Bukti</a><br>
+                                <button class="approve-topup" data-id="${t.id}" data-user="${t.user_id}" data-amount="${t.amount}" style="background:#27ae60;">Setujui</button>
+                                <button class="reject-topup" data-id="${t.id}" style="background:#e74c3c;">Tolak</button>
+                            </div>
+                        `).join('') || '<p>Tidak ada request top up.</p>'}
+                    </div>
+                    <div class="card">
+                        <h2>Request Withdraw (${withdraws?.length || 0})</h2>
+                        ${(withdraws || []).map(w => `
+                            <div style="border-bottom:1px solid #eee; padding:10px;">
+                                <strong>User:</strong> ${w.user_id}<br>
+                                <strong>Jumlah:</strong> ${formatRupiah(w.amount)}<br>
+                                <strong>Bank:</strong> ${w.bank_name} - ${w.bank_account}<br>
+                                <button class="approve-withdraw" data-id="${w.id}" data-user="${w.user_id}" data-amount="${w.amount}" style="background:#27ae60;">Setujui</button>
+                                <button class="reject-withdraw" data-id="${w.id}" style="background:#e74c3c;">Tolak</button>
+                            </div>
+                        `).join('') || '<p>Tidak ada request withdraw.</p>'}
+                    </div>
+                </div>
+                <button id="backBtn" class="btn-back">Kembali ke Beranda</button>
+            `;
             document.getElementById("appRoot").innerHTML = html;
+            
             document.getElementById("logoutAdmin").onclick = async () => { await supabaseClient.auth.signOut(); window.location.hash = "#landing"; };
-            document.getElementById("topUpUserTab").onclick = () => renderAdminTopUp();
-            document.getElementById("editCourseTab").onclick = () => renderCourseUIEditor();
+            document.getElementById("backBtn").onclick = () => window.location.hash = "#landing";
+            document.getElementById("generalSettingsTab").onclick = () => renderGeneralSettings();
+            document.getElementById("editCourseJsonTab").onclick = () => renderEditCourseJson();
+            document.getElementById("editCourseUITab").onclick = () => renderCourseUIEditor();
+            document.getElementById("salesReportTab").onclick = () => renderSalesReport();
+            document.getElementById("promoTab").onclick = () => renderPromoManager();
+            document.getElementById("financialTab").onclick = () => renderFinancialReport();
+            document.getElementById("practicalTab").onclick = () => renderAdminPracticalExams();
+            document.getElementById("studentMgmtTab").onclick = () => renderStudentDashboard();
+            document.getElementById("certSettingsTab").onclick = () => renderCertificateSettings();
+            document.getElementById("earlyBirdTab").onclick = () => renderEarlyBirdSettings();
+            
+            document.querySelectorAll(".btn-approve").forEach(btn => { btn.onclick = async () => { await supabaseClient.from('profiles').update({ status: 'approved' }).eq('user_id', btn.getAttribute("data-user")); alert("User disetujui!"); renderAdminDashboard(); }; });
+            document.querySelectorAll(".btn-reject").forEach(btn => { btn.onclick = async () => { if(confirm("Tolak pendaftaran user ini?")) { await supabaseClient.from('profiles').delete().eq('user_id', btn.getAttribute("data-user")); alert("User ditolak!"); renderAdminDashboard(); } }; });
             document.querySelectorAll(".approve-topup").forEach(btn => { btn.onclick = async () => { let amount = parseInt(btn.getAttribute("data-amount")); let userId = btn.getAttribute("data-user"); let { data: profile } = await supabaseClient.from('profiles').select('wallet_balance').eq('user_id', userId).single(); let newBalance = (profile?.wallet_balance || 0) + amount; await supabaseClient.from('profiles').update({ wallet_balance: newBalance }).eq('user_id', userId); await supabaseClient.from('top_up_requests').update({ status: 'approved' }).eq('id', btn.getAttribute("data-id")); alert("Top up disetujui!"); renderAdminDashboard(); }; });
             document.querySelectorAll(".reject-topup").forEach(btn => { btn.onclick = async () => { await supabaseClient.from('top_up_requests').update({ status: 'rejected' }).eq('id', btn.getAttribute("data-id")); alert("Top up ditolak!"); renderAdminDashboard(); }; });
-            document.querySelectorAll(".topup-user").forEach(btn => { btn.onclick = async () => { let amt = prompt(`Top up untuk ${btn.getAttribute("data-name")}:`, "100000"); if (amt) { let amount = parseInt(amt); let { data: profile } = await supabaseClient.from('profiles').select('wallet_balance').eq('user_id', btn.getAttribute("data-id")).single(); let newBalance = (profile?.wallet_balance || 0) + amount; await supabaseClient.from('profiles').update({ wallet_balance: newBalance }).eq('user_id', btn.getAttribute("data-id")); alert(`Top up ${formatRupiah(amount)} berhasil!`); renderAdminDashboard(); } }; });
+            document.querySelectorAll(".approve-withdraw").forEach(btn => { btn.onclick = async () => { let amount = parseInt(btn.getAttribute("data-amount")); let userId = btn.getAttribute("data-user"); let { data: profile } = await supabaseClient.from('profiles').select('commission').eq('user_id', userId).single(); let newBalance = (profile?.commission || 0) - amount; await supabaseClient.from('profiles').update({ commission: newBalance }).eq('user_id', userId); await supabaseClient.from('withdraw_requests').update({ status: 'approved' }).eq('id', btn.getAttribute("data-id")); alert("Withdraw disetujui!"); renderAdminDashboard(); }; });
+            document.querySelectorAll(".reject-withdraw").forEach(btn => { btn.onclick = async () => { await supabaseClient.from('withdraw_requests').update({ status: 'rejected' }).eq('id', btn.getAttribute("data-id")); alert("Withdraw ditolak!"); renderAdminDashboard(); }; });
         }
         
-        async function renderAdminTopUp() {
-            let html = `<div class="card"><h2>Top Up Saldo User</h2><form id="topUpForm"><div class="form-group"><label>Email User</label><input type="email" id="userEmail" required></div><div class="form-group"><label>Jumlah Top Up</label><input type="number" id="amount" min="10000" required></div><button type="submit" class="btn-success">Proses Top Up</button><button type="button" id="backBtn" class="btn-back">Kembali</button></form></div>`;
-            document.getElementById("appRoot").innerHTML = html;
+        async function renderGeneralSettings() {
+            await loadAppSettings();
+            let html = `
+                <div class="card">
+                    <h2>Pengaturan Umum</h2>
+                    <form id="generalSettingsForm">
+                        <div class="form-group"><label>Nomor WhatsApp Admin</label><input type="text" id="whatsappNumber" value="${settings.defaultWhatsappNumber}"></div>
+                        <div class="form-group"><label>Pesan WhatsApp Default</label><textarea id="whatsappMessage" rows="3">${settings.defaultWhatsappMessage}</textarea></div>
+                        <button type="submit" class="btn-success">Simpan</button>
+                        <button type="button" id="backBtn" class="btn-back">Kembali</button>
+                    </form>
+                </div>
+            `;
+            document.getElementById("adminContent").innerHTML = html;
             document.getElementById("backBtn").onclick = () => renderAdminDashboard();
-            document.getElementById("topUpForm").onsubmit = async (e) => {
+            document.getElementById("generalSettingsForm").onsubmit = async (e) => {
                 e.preventDefault();
-                let email = document.getElementById("userEmail").value;
-                let amount = parseInt(document.getElementById("amount").value);
-                let { data: user } = await supabaseClient.from('auth.users').select('id').eq('email', email).single();
-                if (!user) { alert("User tidak ditemukan"); return; }
-                let { data: profile } = await supabaseClient.from('profiles').select('wallet_balance').eq('user_id', user.id).single();
-                let newBalance = (profile?.wallet_balance || 0) + amount;
-                await supabaseClient.from('profiles').update({ wallet_balance: newBalance }).eq('user_id', user.id);
-                alert(`Top up ${formatRupiah(amount)} untuk ${email} berhasil!`);
-                renderAdminDashboard();
+                await supabaseClient.from('app_settings').upsert({ key: 'default_whatsapp_number', value: document.getElementById("whatsappNumber").value });
+                await supabaseClient.from('app_settings').upsert({ key: 'default_whatsapp_message', value: document.getElementById("whatsappMessage").value });
+                settings.defaultWhatsappNumber = document.getElementById("whatsappNumber").value;
+                settings.defaultWhatsappMessage = document.getElementById("whatsappMessage").value;
+                alert("Pengaturan disimpan!");
+                renderGeneralSettings();
             };
+        }
+        
+        async function renderEditCourseJson() {
+            let html = `
+                <div class="card">
+                    <h2>Edit Kursus via JSON</h2>
+                    <div class="course-grid">
+                        ${coursesData.map(course => `
+                            <div class="course-card">
+                                <div class="course-icon">${course.icon || '📚'}</div>
+                                <div class="course-title">${course.title}</div>
+                                <button class="edit-json-btn" data-id="${course.id}" style="background:#3498db;">Edit JSON</button>
+                                <button class="download-json-btn" data-id="${course.id}" style="background:#27ae60;">Download JSON</button>
+                            </div>
+                        `).join('')}
+                    </div>
+                    <button id="backBtn" class="btn-back">Kembali</button>
+                </div>
+            `;
+            document.getElementById("adminContent").innerHTML = html;
+            document.getElementById("backBtn").onclick = () => renderAdminDashboard();
+            
+            document.querySelectorAll(".edit-json-btn").forEach(btn => {
+                btn.onclick = async () => {
+                    let course = coursesData.find(c => c.id == btn.getAttribute("data-id"));
+                    let newJson = prompt("Edit JSON kursus:", JSON.stringify(course, null, 2));
+                    if (newJson) {
+                        try { let parsed = JSON.parse(newJson); await saveCourse(parsed); alert("Kursus disimpan!"); renderEditCourseJson(); } 
+                        catch(e) { alert("JSON tidak valid: " + e.message); }
+                    }
+                };
+            });
+            document.querySelectorAll(".download-json-btn").forEach(btn => {
+                btn.onclick = () => {
+                    let course = coursesData.find(c => c.id == btn.getAttribute("data-id"));
+                    let dataStr = JSON.stringify(course, null, 2);
+                    let blob = new Blob([dataStr], { type: "application/json" });
+                    let url = URL.createObjectURL(blob);
+                    let a = document.createElement("a"); a.href = url; a.download = `course_${course.id}.json`; a.click(); URL.revokeObjectURL(url);
+                };
+            });
         }
         
         async function renderCourseUIEditor() {
             await loadCourses();
-            let html = `<div class="card"><h2>Edit Kursus via UI Form</h2><div class="course-grid">${coursesData.map(course => `<div class="course-card"><div class="course-icon">${course.icon || '📚'}</div><div class="course-title">${course.title}</div><button class="edit-info" data-id="${course.id}" style="background:#27ae60;">Edit Info & Grup</button><button class="edit-lessons" data-id="${course.id}" style="background:#3498db;">Edit Materi</button></div>`).join('')}</div><button id="backBtn" class="btn-back">Kembali</button></div>`;
-            document.getElementById("appRoot").innerHTML = html;
+            let html = `
+                <div class="card">
+                    <h2>Edit Kursus via UI Form</h2>
+                    <div class="course-grid">
+                        ${coursesData.map(course => `
+                            <div class="course-card">
+                                <div class="course-icon">${course.icon || '📚'}</div>
+                                <div class="course-title">${course.title}</div>
+                                <button class="edit-course-info" data-id="${course.id}" style="background:#27ae60;">Edit Info & Grup</button>
+                                <button class="edit-lessons" data-id="${course.id}" style="background:#3498db;">Edit Materi</button>
+                            </div>
+                        `).join('')}
+                    </div>
+                    <button id="backBtn" class="btn-back">Kembali</button>
+                </div>
+            `;
+            document.getElementById("adminContent").innerHTML = html;
             document.getElementById("backBtn").onclick = () => renderAdminDashboard();
-            document.querySelectorAll(".edit-info").forEach(btn => { btn.onclick = () => { editingCourseId = btn.getAttribute("data-id"); renderEditCourseInfo(); }; });
+            document.querySelectorAll(".edit-course-info").forEach(btn => { btn.onclick = () => { editingCourseId = btn.getAttribute("data-id"); renderEditCourseInfo(); }; });
             document.querySelectorAll(".edit-lessons").forEach(btn => { btn.onclick = () => { editingCourseId = btn.getAttribute("data-id"); renderLessonsManager(); }; });
         }
         
         async function renderEditCourseInfo() {
             let course = coursesData.find(c => c.id == editingCourseId);
-            let html = `<div class="card"><h2>Edit Info & Grup Telegram: ${course.title}</h2><form id="editInfoForm"><div class="form-group"><label>Icon (emoji)</label><input type="text" id="icon" value="${course.icon || '📚'}"></div><div class="form-group"><label>Judul</label><input type="text" id="title" value="${course.title}" required></div><div class="form-group"><label>Deskripsi</label><textarea id="desc" rows="3">${course.description || ''}</textarea></div><div class="form-group"><label>Harga</label><input type="number" id="price" value="${course.price || 200000}"></div><hr><h3>Grup Telegram</h3><div class="form-group"><label>Link Grup Diskusi & Tugas</label><input type="text" id="telegramGroup" value="${course.telegram_group || ''}" placeholder="https://t.me/nama_grup"></div><button type="submit" class="btn-success">Simpan</button><button type="button" id="backBtn" class="btn-back">Kembali</button></form></div>`;
-            document.getElementById("appRoot").innerHTML = html;
+            let html = `
+                <div class="card">
+                    <h2>Edit Info & Grup Telegram: ${course.title}</h2>
+                    <form id="editInfoForm">
+                        <div class="form-group"><label>Icon (emoji)</label><input type="text" id="icon" value="${course.icon || '📚'}"></div>
+                        <div class="form-group"><label>Judul</label><input type="text" id="title" value="${course.title}" required></div>
+                        <div class="form-group"><label>Deskripsi</label><textarea id="desc" rows="3">${course.description || ''}</textarea></div>
+                        <div class="form-group"><label>Harga</label><input type="number" id="price" value="${course.price || 200000}"></div>
+                        <hr>
+                        <h3>Grup Telegram</h3>
+                        <div class="form-group"><label>Link Grup Diskusi & Tugas</label><input type="text" id="telegramGroup" value="${course.telegram_group || ''}" placeholder="https://t.me/nama_grup"></div>
+                        <button type="submit" class="btn-success">Simpan</button>
+                        <button type="button" id="backBtn" class="btn-back">Kembali</button>
+                    </form>
+                </div>
+            `;
+            document.getElementById("adminContent").innerHTML = html;
             document.getElementById("backBtn").onclick = () => renderCourseUIEditor();
             document.getElementById("editInfoForm").onsubmit = async (e) => {
                 e.preventDefault();
@@ -986,19 +1380,47 @@
         
         async function renderLessonsManager() {
             let course = coursesData.find(c => c.id == editingCourseId);
-            let html = `<div class="card"><h2>Materi: ${course.title}</h2><div class="lesson-list">${(course.lessons || []).map((l, idx) => `<div class="lesson-item" data-idx="${idx}"><span><strong>${idx+1}. ${l.title}</strong></span><div><button class="edit-lesson" data-idx="${idx}" style="background:#3498db;">Edit</button><button class="delete-lesson" data-idx="${idx}" style="background:#e74c3c;">Hapus</button></div></div>`).join('')}</div><button id="addLesson" class="btn-success">+ Tambah Materi</button><button id="backBtn" class="btn-back">Kembali</button></div>`;
-            document.getElementById("appRoot").innerHTML = html;
+            let html = `
+                <div class="card">
+                    <h2>Materi: ${course.title}</h2>
+                    <div class="lesson-list">
+                        ${(course.lessons || []).map((l, idx) => `
+                            <div class="lesson-item" data-idx="${idx}">
+                                <div><strong>${idx+1}. ${l.title}</strong></div>
+                                <div>
+                                    <button class="edit-lesson" data-idx="${idx}" style="background:#3498db;">Edit</button>
+                                    <button class="delete-lesson" data-idx="${idx}" style="background:#e74c3c;">Hapus</button>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                    <button id="addLessonBtn" class="btn-success">+ Tambah Materi</button>
+                    <button id="backBtn" class="btn-back">Kembali</button>
+                </div>
+            `;
+            document.getElementById("adminContent").innerHTML = html;
             document.getElementById("backBtn").onclick = () => renderCourseUIEditor();
-            document.getElementById("addLesson").onclick = () => renderAddLessonForm();
+            document.getElementById("addLessonBtn").onclick = () => renderAddLessonForm();
             document.querySelectorAll(".edit-lesson").forEach(btn => { btn.onclick = () => { editingLessonIndex = parseInt(btn.getAttribute("data-idx")); renderEditLessonForm(); }; });
-            document.querySelectorAll(".delete-lesson").forEach(btn => { btn.onclick = async () => { let idx = parseInt(btn.getAttribute("data-idx")); if (confirm(`Hapus materi "${course.lessons[idx].title}"?`)) { course.lessons.splice(idx, 1); await saveCourse(course); renderLessonsManager(); } }; });
+            document.querySelectorAll(".delete-lesson").forEach(btn => { btn.onclick = async () => { let idx = parseInt(btn.getAttribute("data-idx")); if(confirm(`Hapus materi "${course.lessons[idx].title}"?`)) { course.lessons.splice(idx, 1); await saveCourse(course); renderLessonsManager(); } }; });
         }
         
         async function renderAddLessonForm() {
             let course = coursesData.find(c => c.id == editingCourseId);
             let newNum = (course.lessons || []).length + 1;
-            let html = `<div class="card"><h2>Tambah Materi Baru</h2><form id="addLessonForm"><div class="form-group"><label>Judul Materi</label><input type="text" id="title" placeholder="Pertemuan ${newNum}: ..." required></div><div class="form-group"><label>URL Video</label><input type="text" id="videoUrl" placeholder="https://www.youtube.com/embed/..."></div><div class="form-group"><label>Quiz (JSON)</label><textarea id="quiz" rows="5" placeholder='[{"q":"Soal 1","opt":["A","B","C","D"],"jawab":0}]'></textarea></div><button type="submit" class="btn-success">Tambah</button><button type="button" id="backBtn" class="btn-back">Kembali</button></form></div>`;
-            document.getElementById("appRoot").innerHTML = html;
+            let html = `
+                <div class="card">
+                    <h2>Tambah Materi Baru</h2>
+                    <form id="addLessonForm">
+                        <div class="form-group"><label>Judul</label><input type="text" id="title" placeholder="Pertemuan ${newNum}: ..." required></div>
+                        <div class="form-group"><label>URL Video</label><input type="text" id="videoUrl" placeholder="https://www.youtube.com/embed/..."></div>
+                        <div class="form-group"><label>Quiz (JSON)</label><textarea id="quiz" rows="5" placeholder='[{"q":"Soal 1","opt":["A","B","C","D"],"jawab":0}]'></textarea></div>
+                        <button type="submit" class="btn-success">Tambah</button>
+                        <button type="button" id="backBtn" class="btn-back">Kembali</button>
+                    </form>
+                </div>
+            `;
+            document.getElementById("adminContent").innerHTML = html;
             document.getElementById("backBtn").onclick = () => renderLessonsManager();
             document.getElementById("addLessonForm").onsubmit = async (e) => {
                 e.preventDefault();
@@ -1015,8 +1437,19 @@
         async function renderEditLessonForm() {
             let course = coursesData.find(c => c.id == editingCourseId);
             let lesson = course.lessons[editingLessonIndex];
-            let html = `<div class="card"><h2>Edit Materi: ${lesson.title}</h2><form id="editLessonForm"><div class="form-group"><label>Judul</label><input type="text" id="title" value="${lesson.title}" required></div><div class="form-group"><label>URL Video</label><input type="text" id="videoUrl" value="${lesson.videoUrl || ''}"></div><div class="form-group"><label>Quiz (JSON)</label><textarea id="quiz" rows="5">${JSON.stringify(lesson.quiz || [], null, 2)}</textarea></div><button type="submit" class="btn-success">Simpan</button><button type="button" id="backBtn" class="btn-back">Kembali</button></form></div>`;
-            document.getElementById("appRoot").innerHTML = html;
+            let html = `
+                <div class="card">
+                    <h2>Edit Materi: ${lesson.title}</h2>
+                    <form id="editLessonForm">
+                        <div class="form-group"><label>Judul</label><input type="text" id="title" value="${lesson.title}" required></div>
+                        <div class="form-group"><label>URL Video</label><input type="text" id="videoUrl" value="${lesson.videoUrl || ''}"></div>
+                        <div class="form-group"><label>Quiz (JSON)</label><textarea id="quiz" rows="5">${JSON.stringify(lesson.quiz || [], null, 2)}</textarea></div>
+                        <button type="submit" class="btn-success">Simpan</button>
+                        <button type="button" id="backBtn" class="btn-back">Kembali</button>
+                    </form>
+                </div>
+            `;
+            document.getElementById("adminContent").innerHTML = html;
             document.getElementById("backBtn").onclick = () => renderLessonsManager();
             document.getElementById("editLessonForm").onsubmit = async (e) => {
                 e.preventDefault();
@@ -1031,16 +1464,327 @@
             };
         }
         
+        async function renderSalesReport() {
+            let { data: profiles } = await supabaseClient.from('profiles').select('*').eq('status', 'approved');
+            let totalRevenue = (profiles || []).reduce((sum, p) => sum + (p.price_paid || 0), 0);
+            let html = `
+                <div class="card">
+                    <h2>Laporan Penjualan</h2>
+                    <div class="price-card"><h3>Total Pendapatan</h3><div class="price-new">${formatRupiah(totalRevenue)}</div></div>
+                    <button id="exportBtn" class="btn-success">Export CSV</button>
+                    <button id="backBtn" class="btn-back">Kembali</button>
+                </div>
+            `;
+            document.getElementById("adminContent").innerHTML = html;
+            document.getElementById("backBtn").onclick = () => renderAdminDashboard();
+            document.getElementById("exportBtn").onclick = () => {
+                let csvRows = [["Nama", "Email", "WhatsApp", "Paket", "Harga Dibayar"]];
+                (profiles || []).forEach(p => { csvRows.push([p.full_name, p.user_id, p.phone || '-', p.is_bundle ? 'Bundle' : 'Kursus', p.price_paid || 0]); });
+                let csvContent = csvRows.map(row => row.join(",")).join("\n");
+                let blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv" });
+                let a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `laporan_penjualan_${new Date().toISOString().slice(0,10)}.csv`; a.click(); URL.revokeObjectURL(a.href);
+                alert("Laporan diexport!");
+            };
+        }
+        
+        async function renderPromoManager() {
+            await loadPromoData();
+            let html = `
+                <div class="card">
+                    <h2>Manajemen Diskon</h2>
+                    <button id="addPromoBtn" class="btn-success">+ Tambah Diskon</button>
+                    <div id="promoList">
+                        ${promoData.map(p => `<div style="border-bottom:1px solid #eee; padding:10px;"><strong>${p.code}</strong> - ${p.discount_percent}% | ${p.is_active ? 'Aktif' : 'Nonaktif'}<br><button class="edit-promo" data-id="${p.id}" data-code="${p.code}" data-discount="${p.discount_percent}" data-active="${p.is_active}" class="btn-edit">Edit</button> <button class="delete-promo" data-id="${p.id}" class="btn-danger">Hapus</button></div>`).join('') || '<p>Belum ada kode promo.</p>'}
+                    </div>
+                    <button id="backBtn" class="btn-back">Kembali</button>
+                </div>
+            `;
+            document.getElementById("adminContent").innerHTML = html;
+            document.getElementById("backBtn").onclick = () => renderAdminDashboard();
+            document.getElementById("addPromoBtn").onclick = () => renderAddPromoForm();
+            document.querySelectorAll(".edit-promo").forEach(btn => { btn.onclick = () => renderEditPromoForm(btn.dataset.id, btn.dataset.code, btn.dataset.discount, btn.dataset.active === 'true'); });
+            document.querySelectorAll(".delete-promo").forEach(btn => { btn.onclick = async () => { if(confirm("Hapus promo?")) { await deletePromoCode(btn.dataset.id); renderPromoManager(); } }; });
+        }
+        
+        function renderAddPromoForm() {
+            let html = `
+                <div class="card">
+                    <h2>Tambah Diskon</h2>
+                    <form id="promoForm">
+                        <div class="form-group"><label>Kode Promo</label><input type="text" id="code" required></div>
+                        <div class="form-group"><label>Diskon (%)</label><input type="number" id="discount" min="0" max="100" required></div>
+                        <button type="submit" class="btn-success">Simpan</button>
+                        <button type="button" id="backBtn" class="btn-back">Kembali</button>
+                    </form>
+                </div>
+            `;
+            document.getElementById("adminContent").innerHTML = html;
+            document.getElementById("backBtn").onclick = () => renderPromoManager();
+            document.getElementById("promoForm").onsubmit = async (e) => {
+                e.preventDefault();
+                await savePromoCode({ code: document.getElementById("code").value.toUpperCase(), discount_percent: parseInt(document.getElementById("discount").value), is_active: true });
+                alert("Diskon ditambahkan!");
+                renderPromoManager();
+            };
+        }
+        
+        async function renderFinancialReport() {
+            let { data: profiles } = await supabaseClient.from('profiles').select('*').eq('status', 'approved');
+            let totalRevenue = (profiles || []).reduce((sum, p) => sum + (p.price_paid || 0), 0);
+            let totalCommission = (profiles || []).reduce((sum, p) => sum + (p.commission || 0), 0);
+            let netProfit = totalRevenue - totalCommission;
+            let taxAmount = netProfit * 0.005; // 0.5% PPh Final
+            let html = `
+                <div class="card">
+                    <h2>Laporan Keuangan & Pajak</h2>
+                    <div class="stats-grid">
+                        <div class="stat-card"><div class="stat-number">${formatRupiah(totalRevenue)}</div><div>Total Pendapatan</div></div>
+                        <div class="stat-card"><div class="stat-number">${formatRupiah(totalCommission)}</div><div>Total Komisi</div></div>
+                        <div class="stat-card"><div class="stat-number">${formatRupiah(netProfit)}</div><div>Laba Kotor</div></div>
+                        <div class="stat-card"><div class="stat-number">${formatRupiah(taxAmount)}</div><div>Pajak (0.5%)</div></div>
+                        <div class="stat-card"><div class="stat-number">${formatRupiah(netProfit - taxAmount)}</div><div>Laba Bersih</div></div>
+                    </div>
+                    <button id="backBtn" class="btn-back">Kembali</button>
+                </div>
+            `;
+            document.getElementById("adminContent").innerHTML = html;
+            document.getElementById("backBtn").onclick = () => renderAdminDashboard();
+        }
+        
+        async function renderAdminPracticalExams() {
+            await loadPracticalScores();
+            let users = await supabaseClient.from('profiles').select('user_id, full_name').eq('status', 'approved');
+            let html = `
+                <div class="card">
+                    <h2>Input Nilai Praktik</h2>
+                    <div class="form-group"><label>Pilih Peserta</label><select id="practicalUserId">${(users.data || []).map(u => `<option value="${u.user_id}">${u.full_name}</option>`).join('')}</select></div>
+                    <div class="form-group"><label>Pilih Kursus</label><select id="practicalCourseId">${coursesData.map(c => `<option value="${c.id}">${c.title}</option>`).join('')}</select></div>
+                    <div id="practicalLessonDiv"></div>
+                    <div id="practicalForm" style="display:none;">
+                        <div class="form-group"><label>Nilai (0-100)</label><input type="number" id="practicalScore" min="0" max="100"></div>
+                        <div class="form-group"><label>Catatan</label><textarea id="practicalNotes" rows="3"></textarea></div>
+                        <button id="savePracticalBtn" class="btn-success">Simpan Nilai</button>
+                    </div>
+                    <h3>Daftar Nilai Praktik</h3>
+                    <div id="practicalList"></div>
+                    <button id="backBtn" class="btn-back">Kembali</button>
+                </div>
+            `;
+            document.getElementById("adminContent").innerHTML = html;
+            document.getElementById("backBtn").onclick = () => renderAdminDashboard();
+            
+            function loadLessons() {
+                let courseId = document.getElementById("practicalCourseId").value;
+                let course = coursesData.find(c => c.id == courseId);
+                if (course) {
+                    document.getElementById("practicalLessonDiv").innerHTML = `<div class="form-group"><label>Materi</label><select id="practicalLessonIdx"><option value="">-- Pilih Materi --</option>${(course.lessons || []).map((l, i) => `<option value="${i}">${i+1}. ${l.title}</option>`).join('')}</select></div>`;
+                    document.getElementById("practicalForm").style.display = "block";
+                }
+            }
+            document.getElementById("practicalUserId").onchange = loadLessons;
+            document.getElementById("practicalCourseId").onchange = loadLessons;
+            document.getElementById("savePracticalBtn").onclick = async () => {
+                let userId = document.getElementById("practicalUserId").value;
+                let courseId = document.getElementById("practicalCourseId").value;
+                let lessonIdx = parseInt(document.getElementById("practicalLessonIdx").value);
+                let score = parseInt(document.getElementById("practicalScore").value);
+                let notes = document.getElementById("practicalNotes").value;
+                if (!userId || !courseId || isNaN(lessonIdx) || isNaN(score)) { alert("Lengkapi semua data!"); return; }
+                await savePracticalScore(userId, courseId, lessonIdx, score, notes);
+                alert("Nilai praktik disimpan!");
+                renderAdminPracticalExams();
+            };
+            
+            function renderPracticalList() {
+                let container = document.getElementById("practicalList");
+                container.innerHTML = "<table class='report-table'><thead>运转<th>Peserta</th><th>Kursus</th><th>Materi</th><th>Nilai</th><th>Catatan</th></tr></thead><tbody>";
+                practicalScores.forEach(p => {
+                    let course = coursesData.find(c => c.id == p.course_id);
+                    let lesson = course?.lessons[p.lesson_id];
+                    container.innerHTML += `<tr><td>${p.profiles?.full_name || '-'}</td><td>${course?.title || '-'}</td><td>${lesson?.title || '-'}</td><td><strong>${p.score}/100</strong></td><td>${p.notes || '-'}</td></tr>`;
+                });
+                container.innerHTML += "</tbody></table>";
+                if (practicalScores.length === 0) container.innerHTML = "<p>Belum ada nilai praktik.</p>";
+            }
+            renderPracticalList();
+        }
+        
+        async function renderStudentDashboard() {
+            const { data: profiles } = await supabaseClient.from('profiles').select('*');
+            let html = `
+                <div class="card">
+                    <h2>Daftar Peserta (${profiles?.length || 0})</h2>
+                    <table class="report-table">
+                        <thead><tr style="background:#1e6b3b; color:white;"><th>Nama</th><th>Email</th><th>WhatsApp</th><th>Saldo</th><th>Status</th><th>Aksi</th></tr></thead>
+                        <tbody>
+                            ${(profiles || []).map(p => `
+                                <tr>
+                                    <td>${escapeHtml(p.full_name)}</td>
+                                    <td>${p.user_id}</td>
+                                    <td>${p.phone || '-'}</td>
+                                    <td>${formatRupiah(p.wallet_balance || 0)}</td>
+                                    <td><span class="badge ${p.status === 'approved' ? 'badge-blue' : 'badge-gold'}">${p.status || 'pending'}</span></td>
+                                    <td>
+                                        <button class="btn-approve-user" data-id="${p.user_id}" style="background:#27ae60; padding:5px 10px;">Approve</button>
+                                        <button class="btn-topup-user" data-id="${p.user_id}" data-name="${escapeHtml(p.full_name)}" style="background:#3498db; padding:5px 10px;">Top Up</button>
+                                        <button class="btn-ban-user" data-id="${p.user_id}" style="background:#e74c3c; padding:5px 10px;">Ban</button>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                    <button id="backBtn" class="btn-back">Kembali</button>
+                </div>
+            `;
+            document.getElementById("adminContent").innerHTML = html;
+            document.getElementById("backBtn").onclick = () => renderAdminDashboard();
+            document.querySelectorAll(".btn-approve-user").forEach(btn => { btn.onclick = async () => { await supabaseClient.from('profiles').update({ status: 'approved' }).eq('user_id', btn.getAttribute("data-id")); alert("User disetujui!"); renderStudentDashboard(); }; });
+            document.querySelectorAll(".btn-topup-user").forEach(btn => { btn.onclick = async () => { let amt = prompt(`Top up untuk ${btn.getAttribute("data-name")}:`, "100000"); if(amt) { let amount = parseInt(amt); let { data: profile } = await supabaseClient.from('profiles').select('wallet_balance').eq('user_id', btn.getAttribute("data-id")).single(); let newBalance = (profile?.wallet_balance || 0) + amount; await supabaseClient.from('profiles').update({ wallet_balance: newBalance }).eq('user_id', btn.getAttribute("data-id")); alert(`Top up ${formatRupiah(amount)} berhasil!`); renderStudentDashboard(); } }; });
+            document.querySelectorAll(".btn-ban-user").forEach(btn => { btn.onclick = async () => { if(confirm("Ban user ini?")) { await supabaseClient.from('profiles').update({ status: 'banned', account_status: 'banned' }).eq('user_id', btn.getAttribute("data-id")); alert("User dibanned!"); renderStudentDashboard(); } }; });
+        }
+        
+        async function renderCertificateSettings() {
+            await loadAppSettings();
+            let html = `
+                <div class="card">
+                    <h2>Pengaturan Sertifikat</h2>
+                    <form id="certSettingsForm">
+                        <div class="form-group"><label>Nama Lembaga</label><input type="text" id="institutionName" value="${escapeHtml(appSettings.institution_name || 'ALFARUQ ONLINE COURSE')}"></div>
+                        <div class="form-group"><label>Nama Pengajar</label><input type="text" id="teacherName" value="${escapeHtml(appSettings.teacher_name || 'Ustadz Ahmad Fauzi, Lc.')}"></div>
+                        <div class="form-group"><label>Nama Direktur</label><input type="text" id="directorName" value="${escapeHtml(appSettings.director_name || 'Dr. H. Muhammad Ramli, M.Ag.')}"></div>
+                        <button type="submit" class="btn-success">Simpan</button>
+                        <button type="button" id="backBtn" class="btn-back">Kembali</button>
+                    </form>
+                </div>
+            `;
+            document.getElementById("adminContent").innerHTML = html;
+            document.getElementById("backBtn").onclick = () => renderAdminDashboard();
+            document.getElementById("certSettingsForm").onsubmit = async (e) => {
+                e.preventDefault();
+                await supabaseClient.from('app_settings').upsert({ key: 'institution_name', value: document.getElementById("institutionName").value });
+                await supabaseClient.from('app_settings').upsert({ key: 'teacher_name', value: document.getElementById("teacherName").value });
+                await supabaseClient.from('app_settings').upsert({ key: 'director_name', value: document.getElementById("directorName").value });
+                alert("Pengaturan sertifikat disimpan!");
+                renderCertificateSettings();
+            };
+        }
+        
+        async function renderEarlyBirdSettings() {
+            await loadAppSettings();
+            let html = `
+                <div class="card">
+                    <h2>Pengaturan Early Bird Diskon</h2>
+                    <form id="earlyBirdForm">
+                        <div class="form-group">
+                            <label>Aktifkan Early Bird</label>
+                            <select id="earlyBirdEnabled">
+                                <option value="true" ${settings.earlyBirdEnabled ? 'selected' : ''}>Ya (Aktif)</option>
+                                <option value="false" ${!settings.earlyBirdEnabled ? 'selected' : ''}>Tidak (Nonaktif)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Persentase Diskon (%)</label>
+                            <input type="number" id="earlyBirdDiscount" min="0" max="100" step="1" value="${settings.earlyBirdDiscount}">
+                        </div>
+                        <div class="form-group">
+                            <label>Tanggal Berakhir Early Bird</label>
+                            <input type="datetime-local" id="earlyBirdEndDate" value="${settings.earlyBirdEndDate.slice(0, 16)}">
+                        </div>
+                        <div class="form-group">
+                            <label>Preview Harga Setelah Diskon</label>
+                            <div style="background: #f0f0f0; padding: 15px; border-radius: 12px;">
+                                <p><strong>1 Kursus:</strong> <span style="text-decoration:line-through;">Rp 200.000</span> → <strong>${formatRupiah(getDiscountedPrice(200000))}</strong></p>
+                                <p><strong>Bundle:</strong> <span style="text-decoration:line-through;">Rp 800.000</span> → <strong>${formatRupiah(getDiscountedPrice(800000))}</strong></p>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn-success">Simpan Pengaturan</button>
+                        <button type="button" id="backBtn" class="btn-back">Kembali</button>
+                    </form>
+                </div>
+                <div class="card">
+                    <h3>Countdown Status</h3>
+                    <div id="earlyBirdStatus" style="padding: 10px; border-radius: 12px;"></div>
+                </div>
+            `;
+            document.getElementById("adminContent").innerHTML = html;
+            
+            function updateStatus() {
+                let div = document.getElementById("earlyBirdStatus");
+                if (!div) return;
+                let enabled = document.getElementById("earlyBirdEnabled")?.value === "true";
+                let end = new Date(document.getElementById("earlyBirdEndDate")?.value);
+                let now = new Date();
+                let disc = document.getElementById("earlyBirdDiscount")?.value || 0;
+                if (!enabled) div.innerHTML = `<div class="alert-warning">Early Bird NONAKTIF. Harga normal.</div>`;
+                else if (now > end) div.innerHTML = `<div class="alert-danger">Early Bird telah BERAKHIR pada ${end.toLocaleString()}.</div>`;
+                else {
+                    let diff = end - now;
+                    let d = Math.floor(diff / 86400000);
+                    let h = Math.floor((diff % 86400000) / 3600000);
+                    let m = Math.floor((diff % 3600000) / 60000);
+                    let s = Math.floor((diff % 60000) / 1000);
+                    div.innerHTML = `<div class="alert-success">Early Bird AKTIF! Diskon ${disc}% berlaku: ${d} hari ${h} jam ${m} menit ${s} detik lagi!</div>`;
+                }
+            }
+            let interval = setInterval(updateStatus, 1000);
+            updateStatus();
+            document.getElementById("backBtn").onclick = () => { clearInterval(interval); renderAdminDashboard(); };
+            document.getElementById("earlyBirdForm").onsubmit = async (e) => {
+                e.preventDefault();
+                let enabled = document.getElementById("earlyBirdEnabled").value === "true";
+                let discount = parseInt(document.getElementById("earlyBirdDiscount").value);
+                let endDate = document.getElementById("earlyBirdEndDate").value;
+                await supabaseClient.from('app_settings').upsert({ key: 'early_bird_enabled', value: String(enabled) });
+                await supabaseClient.from('app_settings').upsert({ key: 'early_bird_discount', value: String(discount) });
+                await supabaseClient.from('app_settings').upsert({ key: 'early_bird_end_date', value: endDate });
+                settings.earlyBirdEnabled = enabled;
+                settings.earlyBirdDiscount = discount;
+                settings.earlyBirdEndDate = endDate;
+                alert("Pengaturan Early Bird disimpan!");
+                clearInterval(interval);
+                renderEarlyBirdSettings();
+            };
+        }
+        
+        async function loadPromoData() {
+            const { data } = await supabaseClient.from('promo_codes').select('*');
+            promoData = data || [];
+        }
+        
+        async function savePromoCode(promo) {
+            await supabaseClient.from('promo_codes').upsert(promo);
+            await loadPromoData();
+        }
+        
+        async function deletePromoCode(id) {
+            await supabaseClient.from('promo_codes').delete().eq('id', id);
+            await loadPromoData();
+        }
+        
+        async function loadPracticalScores() {
+            const { data } = await supabaseClient.from('practical_scores').select('*, profiles(full_name)');
+            practicalScores = data || [];
+        }
+        
+        async function savePracticalScore(userId, courseId, lessonId, score, notes) {
+            await supabaseClient.from('practical_scores').insert({ user_id: userId, course_id: courseId, lesson_id: lessonId, score, notes, evaluated_by: currentUser.id });
+            await loadPracticalScores();
+        }
+        
+        let promoData = [];
+        let practicalScores = [];
+        
         async function route() {
             let hash = window.location.hash.slice(1);
             if (!supabaseClient) { let success = await initSupabase(); if (!success) return; }
             if (hash === "" || hash === "landing") renderLandingPage();
-            else if (hash === "register") renderRegisterForm();
+            else if (hash === "register") renderRegisterForm(false);
+            else if (hash === "register-bundle") renderRegisterForm(true);
             else if (hash === "login") renderLoginForm();
             else if (hash === "forgot-password") renderForgotPassword();
             else if (hash === "dashboard") { if (currentUser) renderUserDashboard(); else window.location.hash = "#login"; }
             else if (hash === "admin") renderAdminLogin();
-            else if (hash === "admin-dashboard") { if (isAdmin) renderAdminDashboard(); else { alert("Akses ditolak"); window.location.hash = "#landing"; } }
+            else if (hash === "admin-dashboard") { if (isAdmin) renderAdminDashboard(); else { alert("Akses ditolak. Anda bukan admin."); window.location.hash = "#landing"; } }
             else renderLandingPage();
         }
         
