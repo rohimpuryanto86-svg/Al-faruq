@@ -422,9 +422,57 @@
         }
         
         async function topUpWallet(amount) {
-            // FIX: jangan langsung update saldo, arahkan ke halaman top up dengan bukti
             alert(`Untuk top up ${formatRupiah(amount)}, silakan upload bukti transfer terlebih dahulu.`);
             renderTopUpPage();
+        }
+        
+        async function renderTopUpPage() {
+            let whatsapp = appSettings["default_whatsapp_number"] || settings.defaultWhatsappNumber || "08xxxxxxxxxx";
+            let html = `
+                <div class="tabs">
+                    <div class="tab" id="backToDash2">Kembali</div>
+                    <div class="tab active">Top Up Wallet</div>
+                </div>
+                <div class="card">
+                    <h2>💰 Top Up Wallet</h2>
+                    <p>Saldo saat ini: <strong style="color:#27ae60;">${formatRupiah(currentUser.walletBalance)}</strong></p>
+                    <hr style="margin:15px 0;">
+                    <h3>Cara Top Up:</h3>
+                    <ol style="margin:10px 0 15px 20px; line-height:2;">
+                        <li>Transfer ke rekening admin (hubungi via WhatsApp)</li>
+                        <li>Upload bukti transfer di bawah</li>
+                        <li>Admin akan verifikasi dan menambah saldo</li>
+                    </ol>
+                    <a href="https://wa.me/${whatsapp.replace(/\D/g,'')}" target="_blank" style="display:block; background:#25d366; color:white; text-align:center; padding:12px; border-radius:40px; text-decoration:none; margin-bottom:20px;">💬 Hubungi Admin via WhatsApp</a>
+                    <hr style="margin:15px 0;">
+                    <h3>Upload Bukti Transfer</h3>
+                    <div class="form-group"><label>Jumlah Top Up (Rp)</label><input type="number" id="topupAmount" min="10000" step="10000" placeholder="Minimal Rp 10.000"></div>
+                    <div class="form-group"><label>Bukti Transfer</label><input type="file" id="topupProof" accept="image/*" required></div>
+                    <button id="submitTopup" class="btn-success">Kirim Request Top Up</button>
+                </div>
+            `;
+            document.getElementById("appRoot").innerHTML = html;
+            document.getElementById("backToDash2").onclick = () => renderUserDashboard();
+            document.getElementById("submitTopup").onclick = async () => {
+                let amount = parseInt(document.getElementById("topupAmount").value);
+                let file = document.getElementById("topupProof").files[0];
+                if (!amount || amount < 10000) { alert("Minimal top up Rp 10.000"); return; }
+                if (!file) { alert("Silakan upload bukti transfer!"); return; }
+                let btn = document.getElementById("submitTopup");
+                btn.disabled = true; btn.textContent = "Mengirim...";
+                let proofUrl = await uploadToImgBB(file);
+                const { error } = await supabaseClient.from("withdraw_requests").insert({
+                    user_id: currentUser.id,
+                    amount: amount,
+                    type: "topup",
+                    proof_url: proofUrl,
+                    status: "pending",
+                    created_at: new Date().toISOString()
+                });
+                if (error) { alert("Gagal: " + error.message); btn.disabled = false; btn.textContent = "Kirim Request Top Up"; return; }
+                alert("✅ Request top up terkirim! Tunggu konfirmasi admin.");
+                renderUserDashboard();
+            };
         }
         
         async function requestTopUp(amount, proofUrl) {
@@ -592,43 +640,41 @@
         window.showModal = showModal; window.closeModal = closeModal;
         
         function renderRegisterForm(isBundle = false) {
-            let price = getDiscountedPrice(isBundle ? 800000 : 200000);
             let html = `
                 <div class="card">
-                    <h2>${isBundle ? "Pendaftaran Bundle (Akses Semua Kursus)" : "Pendaftaran Kursus"}</h2>
-                    <div class="alert-info">Biaya: ${formatRupiah(price)}</div>
+                    <h2>Daftar Akun Gratis</h2>
+                    <div style="background:#d4edda; border:1px solid #27ae60; border-radius:12px; padding:15px; margin-bottom:15px;">
+                        ✅ Pendaftaran <strong>GRATIS</strong>! Setelah akun diverifikasi admin, kamu bisa top up wallet dan beli kursus yang diinginkan.
+                    </div>
                     <form id="registerForm">
                         <div class="form-group"><label>Nama Lengkap</label><input type="text" id="regName" required></div>
                         <div class="form-group"><label>Email</label><input type="email" id="regEmail" required></div>
-                        <div class="form-group"><label>Password</label><input type="password" id="regPassword" required></div>
-                        <div class="form-group"><label>No WhatsApp</label><input type="text" id="regPhone" required></div>
-                        <div class="form-group"><label>Alamat</label><textarea id="regAddress" rows="2"></textarea></div>
-                        ${!isBundle ? `<div class="form-group"><label>Pilih Kursus</label><select id="selectedCourse" required>${coursesData.map(c => `<option value="${c.id}">${c.title}</option>`).join('')}</select></div>` : ''}
-                        <div class="form-group"><label>Upload Bukti Bayar</label><input type="file" id="paymentProof" accept="image/*"></div>
+                        <div class="form-group"><label>Password (min 6 karakter)</label><input type="password" id="regPassword" required minlength="6"></div>
+                        <div class="form-group"><label>No WhatsApp</label><input type="text" id="regPhone" required placeholder="08xxxxxxxxxx"></div>
+                        <div class="form-group"><label>Alamat (Opsional)</label><textarea id="regAddress" rows="2"></textarea></div>
                         <div class="checkbox-group"><input type="checkbox" id="agreeTerms" required> <label>Saya setuju <a href="#" onclick="showModal('terms'); return false;">Syarat & Ketentuan</a></label></div>
-                        <button type="submit" class="btn-success">Daftar</button>
+                        <button type="submit" class="btn-success">Daftar Gratis</button>
                         <button type="button" onclick="window.location.hash='#landing'" class="btn-back">Kembali</button>
                     </form>
                 </div>
             `;
             document.getElementById("appRoot").innerHTML = html;
-            
             document.getElementById("registerForm").onsubmit = async (e) => {
                 e.preventDefault();
                 if (!document.getElementById("agreeTerms").checked) { alert("Anda harus menyetujui Syarat & Ketentuan!"); return; }
                 let btn = e.target.querySelector('button[type="submit"]');
                 btn.disabled = true; btn.textContent = "Mendaftar...";
-                let file = document.getElementById("paymentProof").files[0];
-                let paymentProofUrl = file ? await uploadToImgBB(file) : "https://via.placeholder.com/150?text=Bukti+Bayar";
-                let email = document.getElementById("regEmail").value, password = document.getElementById("regPassword").value, fullName = document.getElementById("regName").value, phone = document.getElementById("regPhone").value, address = document.getElementById("regAddress").value;
-                let selectedCourse = !isBundle ? parseInt(document.getElementById("selectedCourse").value) : null;
-                
-                const { error } = await supabaseClient.auth.signUp({ 
-                    email, password, 
-                    options: { data: { full_name: fullName, phone, address, payment_proof: paymentProofUrl, status: "pending", selected_course: selectedCourse, is_bundle: isBundle, price_paid: price, wallet_balance: 0 } } 
+                let email = document.getElementById("regEmail").value,
+                    password = document.getElementById("regPassword").value,
+                    fullName = document.getElementById("regName").value,
+                    phone = document.getElementById("regPhone").value,
+                    address = document.getElementById("regAddress").value;
+                const { error } = await supabaseClient.auth.signUp({
+                    email, password,
+                    options: { data: { full_name: fullName, phone, address, status: "pending", wallet_balance: 0, is_bundle: false, purchased_courses: [] } }
                 });
-                if (error) { alert("Registrasi gagal: " + error.message); btn.disabled = false; btn.textContent = "Daftar"; return; }
-                alert("✅ Pendaftaran berhasil! Mohon tunggu verifikasi admin.");
+                if (error) { alert("Registrasi gagal: " + error.message); btn.disabled = false; btn.textContent = "Daftar Gratis"; return; }
+                alert("✅ Pendaftaran berhasil! Mohon tunggu verifikasi admin sebelum bisa login.");
                 window.location.hash = "#login";
             };
         }
@@ -733,7 +779,7 @@
             
             document.getElementById("coursesTab").onclick = () => renderStorePage();
             document.getElementById("progressTab").onclick = () => renderProgressPage();
-            document.getElementById("walletTab").onclick = () => renderWalletPage();
+            document.getElementById("walletTab").onclick = () => renderTopUpPage();
             document.getElementById("certificateTab").onclick = () => renderCertificatePage();
             document.getElementById("reportTab").onclick = () => renderReportPage();
             document.getElementById("resellerTab").onclick = () => renderResellerInfo();
