@@ -111,8 +111,15 @@
         button, .btn { background: var(--secondary); border: none; padding: 12px 24px; border-radius: 40px; cursor: pointer; font-weight: bold; transition: 0.2s; margin: 5px; display: inline-block; color: #333; }
         button:hover, .btn:hover { background: var(--secondary-dark); transform: scale(1.02); }
         .btn-success { background: #27ae60; color: white; }
-        .btn-outline { background: transparent; border: 2px solid var(--text-light); color: var(--text-light); }
-        .btn-outline:hover { background: var(--text-light); color: var(--primary-dark); }
+        .btn-outline {
+    background: transparent;
+    border: 2px solid var(--secondary); /* Mengambil warna oranye dari variabel */
+    color: var(--secondary);
+}
+.btn-outline:hover {
+    background: var(--secondary);
+    color: var(--primary-dark);
+}
         .btn-danger { background: #e74c3c; color: white; }
         .btn-edit { background: #f39c12; color: white; }
         .btn-back { background: #7f8c8d; color: white; }
@@ -225,18 +232,28 @@
             earlyBirdEndDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
         };
         let badgesData = [];
+        let promoData = []; // FIX: dipindah ke sini agar tidak hoisting issue
+        let practicalScores = [];
         
         // ======================== HELPER FUNCTIONS ========================
+        let landingCountdownInterval = null; // fix: track interval agar bisa di-clear
+
+        function showLoading(msg = "Memuat...") {
+            document.getElementById("appRoot").innerHTML = `<div style="text-align:center; padding:80px 20px; color:white;"><div style="font-size:3rem; margin-bottom:20px;">⏳</div><p style="font-size:1.2rem;">${msg}</p></div>`;
+        }
+
         function formatRupiah(amount) {
             return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(amount);
         }
         
         function escapeHtml(str) {
             if (!str) return '';
-            return str.replace(/[&<>]/g, function(m) {
+            return str.replace(/[&<>'"]/g, function(m) {
                 if (m === '&') return '&amp;';
                 if (m === '<') return '&lt;';
                 if (m === '>') return '&gt;';
+                if (m === '"') return '&quot;';
+                if (m === "'") return '&#39;';
                 return m;
             });
         }
@@ -247,6 +264,8 @@
             }
             return price;
         }
+        
+        let appSettings = {}; // fix: deklarasi di sini agar tidak undefined
         
         // ======================== SUPABASE INIT ========================
         async function initSupabase() {
@@ -263,18 +282,22 @@
                 await loadAppSettings();
                 return true;
             } catch(e) { 
-                console.error(e); 
+                console.error(e);
+                document.getElementById("appRoot").innerHTML = `<div class="card" style="text-align:center;"><h2>❌ Gagal terhubung ke server</h2><p>${e.message}</p><button onclick="location.reload()">Coba Lagi</button></div>`;
                 return false; 
             }
         }
         
         async function loadAppSettings() {
-            const { data } = await supabaseClient.from('app_settings').select('key, value');
+            const { data, error } = await supabaseClient.from('app_settings').select('key, value');
             if (data) {
+                appSettings = {}; // reset dulu
                 data.forEach(s => {
+                    appSettings[s.key] = s.value;
                     if (s.key === 'early_bird_enabled') settings.earlyBirdEnabled = s.value === 'true';
                     if (s.key === 'early_bird_discount') settings.earlyBirdDiscount = parseInt(s.value);
                     if (s.key === 'early_bird_end_date') settings.earlyBirdEndDate = s.value;
+                    if (s.key === 'default_whatsapp_number') settings.defaultWhatsappNumber = s.value;
                 });
             }
         }
@@ -291,16 +314,18 @@
         
         async function loadUserProfile() {
             if (!currentUser) return;
-            const { data } = await supabaseClient.from('profiles').select('*').eq('user_id', currentUser.id).single();
+            const { data, error } = await supabaseClient.from('profiles').select('*').eq('user_id', currentUser.id).single();
             if (data) {
                 currentUser.profile = data;
                 currentUser.name = data.full_name;
+                currentUser.status = data.status || 'pending'; // FIX: tambah status
                 currentUser.walletBalance = data.wallet_balance || 0;
                 currentUser.referralCode = data.referral_code;
                 currentUser.canRefer = data.can_refer || false;
                 currentUser.phone = data.phone;
                 currentUser.purchasedCourses = data.purchased_courses || [];
                 currentUser.isBundle = data.is_bundle || false;
+                currentUser.commission = data.commission || 0;
                 currentUser.completedLessons = {};
                 await loadUserProgress();
                 await loadUserBadges();
@@ -397,15 +422,9 @@
         }
         
         async function topUpWallet(amount) {
-            if (amount < 10000) {
-                alert("Minimal top up Rp 10.000");
-                return false;
-            }
-            const newBalance = currentUser.walletBalance + amount;
-            await supabaseClient.from('profiles').update({ wallet_balance: newBalance }).eq('user_id', currentUser.id);
-            currentUser.walletBalance = newBalance;
-            alert(`Top up ${formatRupiah(amount)} berhasil! Saldo: ${formatRupiah(newBalance)}`);
-            return true;
+            // FIX: jangan langsung update saldo, arahkan ke halaman top up dengan bukti
+            alert(`Untuk top up ${formatRupiah(amount)}, silakan upload bukti transfer terlebih dahulu.`);
+            renderTopUpPage();
         }
         
         async function requestTopUp(amount, proofUrl) {
@@ -415,8 +434,26 @@
         }
         
         async function uploadToImgBB(file) {
-            // Untuk sementara, kembalikan URL lokal
-            return URL.createObjectURL(file);
+            try {
+                // Konversi file ke base64
+                const base64 = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(reader.result.split(",")[1]);
+                    reader.onerror = () => reject(new Error("Gagal membaca file"));
+                    reader.readAsDataURL(file);
+                });
+                // Kirim ke Edge Function api-proxy
+                const { data, error } = await supabaseClient.functions.invoke("api-proxy", {
+                    body: { action: "upload_image", payload: { base64Image: base64 } }
+                });
+                if (error) throw new Error(error.message);
+                if (!data?.url) throw new Error("URL tidak ditemukan");
+                return data.url;
+            } catch(e) {
+                console.warn("Upload ImgBB gagal:", e.message);
+                alert("Upload bukti bayar gagal: " + e.message);
+                return "https://via.placeholder.com/300?text=Bukti+Bayar";
+            }
         }
         
         async function checkAndUpdateReferralStatus() {
@@ -476,8 +513,10 @@
                     <p>Kini ada <strong>4 kursus online praktis</strong>, cukup <strong>15 menit sehari</strong>.</p>
                     <div class="countdown-badge" id="landingCountdown">Memuat...</div>
                     <div>
-                        <button onclick="window.location.hash='#register'">Daftar Sekarang</button>
-                        <button class="btn-outline" onclick="window.location.hash='#login'">Login</button>
+                     <div style="display: flex; gap: 15px; justify-content: center; align-items: center;">
+    <button class="btn-primary" onclick="window.location.hash='#register'" style="background-color: #f4a261; border: none; color: #333; padding: 12px 24px; border-radius: 40px; cursor: pointer; font-weight: bold; transition: 0.2s;">Daftar Sekarang</button>
+    <button class="btn-outline" onclick="window.location.hash='#login'" style="background-color: transparent; border: 2px solid #f4a261; color: #f4a261; padding: 12px 24px; border-radius: 40px; cursor: pointer; font-weight: bold; transition: 0.2s;">Login</button>
+</div>
                     </div>
                 </div>
                 <div class="benefit-grid">
@@ -491,12 +530,12 @@
                     <table class="commission-table">
                         <thead><tr><th>Level</th><th>Referral</th><th>Komisi</th></tr></thead>
                         <tbody>
-                            <tr><td class="badge-gold">BASIC</div><td>0-49</div><td>20%</div></tr>
-                            <tr><td class="badge-gold">BRONZE</div><td>50-99</div><td>25%</div></tr>
-                            <tr><td class="badge-gold">SILVER</div><td>100-499</div><td>30%</div></tr>
-                            <tr><td class="badge-gold">GOLD</div><td>500-999</div><td>35%</div></tr>
-                            <tr><td class="badge-gold">PLATINUM</div><td>1000-4999</div><td>40%</div></tr>
-                            <tr><td class="badge-gold">DIAMOND</div><td>5000+</div><td>50%</div></tr>
+                            <tr><td>BASIC</td><td>0-49</td><td>20%</td></tr>
+                            <tr><td>BRONZE</td><td>50-99</td><td>25%</td></tr>
+                            <tr><td>SILVER</td><td>100-499</td><td>30%</td></tr>
+                            <tr><td>GOLD</td><td>500-999</td><td>35%</td></tr>
+                            <tr><td>PLATINUM</td><td>1000-4999</td><td>40%</td></tr>
+                            <tr><td>DIAMOND</td><td>5000+</td><td>50%</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -518,7 +557,9 @@
             `;
             document.getElementById("appRoot").innerHTML = html;
             updateLandingCountdown();
-            setInterval(updateLandingCountdown, 1000);
+            // FIX: clear interval lama sebelum buat yang baru
+            if (landingCountdownInterval) clearInterval(landingCountdownInterval);
+            landingCountdownInterval = setInterval(updateLandingCountdown, 1000);
         }
         
         function updateLandingCountdown() {
@@ -575,6 +616,8 @@
             document.getElementById("registerForm").onsubmit = async (e) => {
                 e.preventDefault();
                 if (!document.getElementById("agreeTerms").checked) { alert("Anda harus menyetujui Syarat & Ketentuan!"); return; }
+                let btn = e.target.querySelector('button[type="submit"]');
+                btn.disabled = true; btn.textContent = "Mendaftar...";
                 let file = document.getElementById("paymentProof").files[0];
                 let paymentProofUrl = file ? await uploadToImgBB(file) : "https://via.placeholder.com/150?text=Bukti+Bayar";
                 let email = document.getElementById("regEmail").value, password = document.getElementById("regPassword").value, fullName = document.getElementById("regName").value, phone = document.getElementById("regPhone").value, address = document.getElementById("regAddress").value;
@@ -584,8 +627,8 @@
                     email, password, 
                     options: { data: { full_name: fullName, phone, address, payment_proof: paymentProofUrl, status: "pending", selected_course: selectedCourse, is_bundle: isBundle, price_paid: price, wallet_balance: 0 } } 
                 });
-                if (error) { alert("Registrasi gagal: " + error.message); return; }
-                alert("Pendaftaran berhasil! Mohon tunggu verifikasi admin.");
+                if (error) { alert("Registrasi gagal: " + error.message); btn.disabled = false; btn.textContent = "Daftar"; return; }
+                alert("✅ Pendaftaran berhasil! Mohon tunggu verifikasi admin.");
                 window.location.hash = "#login";
             };
         }
@@ -607,17 +650,22 @@
             
             document.getElementById("loginForm").onsubmit = async (e) => {
                 e.preventDefault();
+                let btn = e.target.querySelector('button[type="submit"]');
+                btn.disabled = true; btn.textContent = "Memproses...";
                 let email = document.getElementById("loginEmail").value, password = document.getElementById("loginPassword").value;
                 const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
-                if (error) { alert("Login gagal: " + error.message); return; }
+                if (error) { alert("Login gagal: " + error.message); btn.disabled = false; btn.textContent = "Login"; return; }
                 currentUser = data.user;
                 await loadUserProfile();
                 await checkAdminStatus();
+                // FIX: cek status dari currentUser.status yg sudah di-set di loadUserProfile
+                if (currentUser.status === 'banned') {
+                    alert("Akun Anda telah diblokir. Hubungi admin.");
+                    await supabaseClient.auth.signOut(); window.location.hash = "#landing"; return;
+                }
                 if (currentUser.status !== 'approved') {
-                    alert("Akun Anda belum disetujui oleh admin. Silakan tunggu verifikasi.");
-                    await supabaseClient.auth.signOut();
-                    window.location.hash = "#landing";
-                    return;
+                    alert("Akun Anda belum disetujui admin. Silakan tunggu verifikasi.");
+                    await supabaseClient.auth.signOut(); window.location.hash = "#landing"; return;
                 }
                 window.location.hash = "#dashboard";
             };
@@ -826,11 +874,18 @@
             `;
             document.getElementById("appRoot").innerHTML = html;
             document.getElementById("backToLesson").onclick = () => renderLessonDetail();
-            document.getElementById("quizForm").onsubmit = (e) => {
+            document.getElementById("quizForm").onsubmit = async (e) => {
                 e.preventDefault();
                 let score = 0;
                 lesson.quiz.forEach((q, idx) => { let sel = document.querySelector(`input[name="q${idx}"]:checked`); if (sel && parseInt(sel.value) === q.jawab) score++; });
+                // FIX: simpan ke localStorage DAN Supabase
                 localStorage.setItem(`quiz_${currentUser.id}_${currentCourseForUser.id}_${selectedLessonIndex}`, score);
+                await supabaseClient.from('scores').upsert({
+                    user_id: currentUser.id,
+                    course_id: currentCourseForUser.id,
+                    lesson_id: selectedLessonIndex,
+                    quiz_score: score * 10
+                });
                 if (score >= 7) {
                     let completed = currentUser.completedLessons[currentCourseForUser.id] || [];
                     if (!completed.includes(selectedLessonIndex)) {
@@ -838,10 +893,10 @@
                         currentUser.completedLessons[currentCourseForUser.id] = completed;
                         supabaseClient.from('user_progress').upsert({ user_id: currentUser.id, course_id: currentCourseForUser.id, completed_lessons: completed });
                     }
-                    document.getElementById("quizResult").innerHTML = `<div class="alert-success">Lulus! Nilai: ${score}/10</div>`;
+                    document.getElementById("quizResult").innerHTML = `<div class="alert-success">✅ Lulus! Nilai: ${score * 10}/100</div>`;
                     setTimeout(() => { renderLearningView(); }, 2000);
                 } else {
-                    document.getElementById("quizResult").innerHTML = `<div class="alert-danger">Tidak lulus. Nilai: ${score}/10. Minimal 7.</div>`;
+                    document.getElementById("quizResult").innerHTML = `<div class="alert-danger">❌ Belum lulus. Nilai: ${score * 10}/100. Minimal 70.</div>`;
                 }
             };
         }
@@ -1116,14 +1171,14 @@
                     ${!currentUser.canRefer ? '<div class="alert-warning">Selesaikan 1 kursus penuh dengan nilai minimal 7 untuk mengaktifkan program reseller!</div>' : ''}
                     <h3>Level Komisi</h3>
                     <table class="commission-table">
-                        <thead>运转<th>Level</th><th>Referral</th><th>Komisi</th></tr></thead>
+                        <thead><tr><th>Level</th><th>Referral</th><th>Komisi</th></tr></thead>
                         <tbody>
-                            <tr><td class="badge-gold">BASIC</div><td>0-49</div><td>20%</div></tr>
-                            <tr><td class="badge-gold">BRONZE</div><td>50-99</div><td>25%</div></tr>
-                            </tr><td class="badge-gold">SILVER</div><td>100-499</div><td>30%</div></tr>
-                            <tr><td class="badge-gold">GOLD</div><td>500-999</div><td>35%</div></tr>
-                            <tr><td class="badge-gold">PLATINUM</div><td>1000-4999</div><td>40%</div></tr>
-                            <tr><td class="badge-gold">DIAMOND</div><td>5000+</div><td>50%</div></tr>
+                            <tr><td>BASIC</td><td>0-49</td><td>20%</td></tr>
+                            <tr><td>BRONZE</td><td>50-99</td><td>25%</td></tr>
+                            <tr><td>SILVER</td><td>100-499</td><td>30%</td></tr>
+                            <tr><td>GOLD</td><td>500-999</td><td>35%</td></tr>
+                            <tr><td>PLATINUM</td><td>1000-4999</td><td>40%</td></tr>
+                            <tr><td>DIAMOND</td><td>5000+</td><td>50%</td></tr>
                         </tbody>
                     </table>
                     <button id="backBtn" class="btn-back">Kembali</button>
@@ -1161,14 +1216,16 @@
             document.getElementById("appRoot").innerHTML = html;
             document.getElementById("adminForm").onsubmit = async (e) => {
                 e.preventDefault();
+                let btn = e.target.querySelector('button[type="submit"]');
+                btn.disabled = true; btn.textContent = "Memproses...";
                 let email = document.getElementById("adminEmail").value, password = document.getElementById("adminPass").value;
                 const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
-                if (error) { alert("Login gagal: " + error.message); return; }
+                if (error) { alert("Login gagal: " + error.message); btn.disabled = false; btn.textContent = "Login"; return; }
                 currentUser = data.user;
                 await loadUserProfile();
                 await checkAdminStatus();
                 if (isAdmin) { window.location.hash = "#admin-dashboard"; } 
-                else { alert("Akun Anda bukan admin"); await supabaseClient.auth.signOut(); }
+                else { alert("Akun Anda bukan admin"); await supabaseClient.auth.signOut(); btn.disabled = false; btn.textContent = "Login"; }
             };
         }
         
@@ -1597,7 +1654,7 @@
             
             function renderPracticalList() {
                 let container = document.getElementById("practicalList");
-                container.innerHTML = "<table class='report-table'><thead>运转<th>Peserta</th><th>Kursus</th><th>Materi</th><th>Nilai</th><th>Catatan</th></tr></thead><tbody>";
+                container.innerHTML = "<table class='report-table'><thead><tr><th>Peserta</th><th>Kursus</th><th>Materi</th><th>Nilai</th><th>Catatan</th></tr></thead><tbody>";
                 practicalScores.forEach(p => {
                     let course = coursesData.find(c => c.id == p.course_id);
                     let lesson = course?.lessons[p.lesson_id];
@@ -1771,12 +1828,13 @@
             await loadPracticalScores();
         }
         
-        let promoData = [];
-        let practicalScores = [];
-        
         async function route() {
             let hash = window.location.hash.slice(1);
-            if (!supabaseClient) { let success = await initSupabase(); if (!success) return; }
+            if (!supabaseClient) { 
+                showLoading("Menghubungkan ke server...");
+                let success = await initSupabase(); 
+                if (!success) return; 
+            }
             if (hash === "" || hash === "landing") renderLandingPage();
             else if (hash === "register") renderRegisterForm(false);
             else if (hash === "register-bundle") renderRegisterForm(true);
