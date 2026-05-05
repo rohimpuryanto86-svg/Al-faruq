@@ -1682,277 +1682,278 @@ function toggleDarkMode() {
             document.querySelectorAll(".reject-withdraw").forEach(btn => { btn.onclick = async () => { await supabaseClient.from('withdraw_requests').update({ status: 'rejected' }).eq('id', btn.getAttribute("data-id")); alert("Withdraw ditolak!"); renderAdminDashboard(); }; });
         }
         
-        // ======================== EDIT KURSUS VIA JSON (LENGKAP DENGAN UPLOAD) ========================
-        
-        async function renderEditCourseJson() {
-            await loadCourses();
+        // ======================== EDIT KURSUS JSON DENGAN UPLOAD FILE ========================
+
+async function renderEditCourseJson() {
+    await loadCourses();
+    
+    let html = `
+        <div class="card">
+            <h2>📁 Edit Kursus via JSON (Upload File Langsung)</h2>
             
-            let html = `
-                <div class="card">
-                    <h2>📁 Edit Kursus via JSON (Upload Full Materi)</h2>
-                    <div class="alert-info" style="margin-bottom: 15px;">
-                        <strong>ℹ️ Petunjuk:</strong><br>
-                        1. Pilih kursus yang ingin diedit dari dropdown<br>
-                        2. Edit JSON langsung di textarea ATAU upload file JSON<br>
-                        3. JSON harus mencakup: title, description, price, lessons (dengan quiz & videoUrl)<br>
-                        4. Klik "Simpan JSON" untuk menyimpan perubahan ke database
-                    </div>
-                    
-                    <div class="form-group">
-                        <label>Pilih Kursus:</label>
-                        <select id="courseSelect" style="width:100%; padding:10px; border-radius:8px;">
-                            <option value="">-- Pilih Kursus --</option>
-                            ${coursesData.map(course => `
-                                <option value="${course.id}">
-                                    ${course.icon || '📚'} ${course.title} - ${formatRupiah(course.price)}
-                                </option>
-                            `).join('')}
-                        </select>
-                    </div>
-                    
-                    <div style="display: flex; gap: 10px; margin: 15px 0; flex-wrap: wrap;">
-                        <button id="loadCourseBtn" class="btn-primary">📖 Load Kursus ke Editor</button>
-                        <button id="downloadJsonBtn" class="btn-success" disabled>📥 Download JSON</button>
-                        <button id="uploadJsonBtn" class="btn-edit" disabled>📤 Upload File JSON</button>
-                        <input type="file" id="jsonFileInput" accept=".json" style="display:none;">
-                    </div>
-                    
-                    <div class="form-group">
-                        <label>JSON Editor (Edit Langsung):</label>
-                        <textarea id="jsonEditor" rows="20" style="width:100%; font-family:monospace; font-size:12px; padding:10px; border-radius:8px; background:#1e1e2e; color:#e0e0e0;" placeholder="JSON akan muncul di sini..."></textarea>
-                    </div>
-                    
-                    <div style="display: flex; gap: 10px; margin-top: 15px;">
-                        <button id="saveJsonBtn" class="btn-success" disabled>💾 Simpan JSON ke Database</button>
-                        <button id="validateJsonBtn" class="btn-primary">✅ Validasi JSON</button>
-                        <button id="backBtn" class="btn-back">Kembali</button>
-                    </div>
-                    
-                    <div id="jsonStatus" style="margin-top: 15px;"></div>
-                </div>
-                
-                <div class="card">
-                    <h3>📝 Contoh Format JSON yang Valid</h3>
-                    <pre style="background:#1e1e2e; color:#e0e0e0; padding:15px; border-radius:8px; overflow-x:auto; font-size:11px;">
-{
-  "id": 1,
-  "title": "Baca Al-Qur'an",
-  "icon": "📖",
-  "description": "Metode tahsin sederhana, praktik dari juz 30",
-  "price": 200000,
-  "telegram_group": "https://t.me/alfaruq_tahsin",
-  "lessons": [
-    {
-      "number": 1,
-      "title": "Pengenalan Huruf Hijaiyah",
-      "videoUrl": "https://www.youtube.com/embed/xxxxx",
-      "quiz": [
-        {
-          "q": "Huruf hijaiyah terdiri dari berapa huruf?",
-          "opt": ["28", "29", "30", "31"],
-          "jawab": 0
-        }
-      ]
-    },
-    {
-      "number": 2,
-      "title": "Makhraj Huruf",
-      "videoUrl": "https://www.youtube.com/embed/yyyyy",
-      "quiz": []
+            <div class="alert-success" style="margin-bottom: 15px; padding: 15px; background: #d4edda; border-radius: 12px;">
+                <strong>🎯 CARA PALING MUDAH UPLOAD 30 MATERI:</strong><br>
+                1️⃣ Klik tombol <strong>"📥 Download Template JSON"</strong> di bawah<br>
+                2️⃣ Edit file template di komputer (ganti judul materi)<br>
+                3️⃣ Klik tombol <strong>"📤 Upload File JSON"</strong><br>
+                4️⃣ Pilih file yang sudah diedit<br>
+                5️⃣ Klik <strong>"✅ Validasi JSON"</strong><br>
+                6️⃣ Klik <strong>"💾 Simpan ke Database"</strong>
+            </div>
+            
+            <!-- Pilih Kursus -->
+            <div class="form-group">
+                <label>📚 Pilih Kursus (opsional):</label>
+                <select id="courseSelect" style="width:100%; padding:12px; border-radius:8px;">
+                    <option value="">-- Buat Kursus Baru atau Pilih yang Akan Diedit --</option>
+                    ${coursesData.map(course => `
+                        <option value="${course.id}">
+                            ${course.icon || '📚'} ${course.title} - ${(course.lessons || []).length} materi
+                        </option>
+                    `).join('')}
+                </select>
+            </div>
+            
+            <!-- TOMBOL UPLOAD DAN DOWNLOAD -->
+            <div style="display: flex; gap: 10px; margin: 15px 0; flex-wrap: wrap;">
+                <button id="downloadTemplateBtn" class="btn-edit" style="background: #27ae60; color: white;">📥 Download Template JSON (30 Materi)</button>
+                <button id="uploadJsonBtn" class="btn-primary" style="background: #3498db;">📤 Upload File JSON</button>
+                <button id="loadCourseBtn" class="btn-info" style="background: #17a2b8;">📖 Load Kursus ke Editor</button>
+                <button id="downloadJsonBtn" class="btn-success" disabled>📥 Download JSON</button>
+                <input type="file" id="jsonFileInput" accept=".json" style="display:none;">
+            </div>
+            
+            <!-- JSON EDITOR -->
+            <div class="form-group">
+                <label>📝 JSON Editor (otomatis terisi):</label>
+                <textarea id="jsonEditor" rows="15" style="width:100%; font-family:'Courier New', monospace; font-size:11px; padding:15px; border-radius:8px; background:#1e1e2e; color:#e0e0e0; overflow:auto;" placeholder="JSON akan muncul di sini setelah upload file..."></textarea>
+                <small>💡 File JSON akan otomatis muncul di sini setelah upload</small>
+            </div>
+            
+            <!-- TOMBOL SIMPAN -->
+            <div style="display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap;">
+                <button id="saveJsonBtn" class="btn-success" disabled>💾 Simpan ke Database</button>
+                <button id="validateJsonBtn" class="btn-primary">✅ Validasi JSON</button>
+                <button id="backBtn" class="btn-back">Kembali</button>
+            </div>
+            
+            <div id="jsonStatus" style="margin-top: 15px;"></div>
+        </div>
+    `;
+    
+    document.getElementById("adminContent").innerHTML = html;
+    
+    // Ambil elemen
+    const courseSelect = document.getElementById("courseSelect");
+    const jsonEditor = document.getElementById("jsonEditor");
+    const loadCourseBtn = document.getElementById("loadCourseBtn");
+    const downloadJsonBtn = document.getElementById("downloadJsonBtn");
+    const uploadJsonBtn = document.getElementById("uploadJsonBtn");
+    const saveJsonBtn = document.getElementById("saveJsonBtn");
+    const validateJsonBtn = document.getElementById("validateJsonBtn");
+    const backBtn = document.getElementById("backBtn");
+    const downloadTemplateBtn = document.getElementById("downloadTemplateBtn");
+    const jsonFileInput = document.getElementById("jsonFileInput");
+    const statusDiv = document.getElementById("jsonStatus");
+    
+    function setStatus(message, type = "info") {
+        statusDiv.innerHTML = `<div class="alert-${type}" style="padding:12px; border-radius:8px;">${message}</div>`;
+        setTimeout(() => {
+            if (statusDiv.innerHTML === `<div class="alert-${type}" style="padding:12px; border-radius:8px;">${message}</div>`) {
+                statusDiv.innerHTML = "";
+            }
+        }, 8000);
     }
-  ]
-}
-                    </pre>
-                </div>
-            `;
+    
+    // DOWNLOAD TEMPLATE JSON (30 MATERI)
+    downloadTemplateBtn.onclick = () => {
+        const template = {
+            id: null,
+            title: "Nama Kursus Anda",
+            icon: "📚",
+            description: "Deskripsi kursus",
+            price: 200000,
+            telegram_group: "https://t.me/namagrup",
+            lessons: []
+        };
+        
+        // Generate 30 materi template
+        for (let i = 1; i <= 30; i++) {
+            template.lessons.push({
+                number: i,
+                title: `Pertemuan ${i}: [Isi Judul Materi]`,
+                videoUrl: "",
+                quiz: []
+            });
+        }
+        
+        const blob = new Blob([JSON.stringify(template, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "template_kursus_30_materi.json";
+        a.click();
+        URL.revokeObjectURL(url);
+        setStatus("✅ Template 30 materi berhasil didownload! Edit file tersebut di komputer lalu upload.", "success");
+    };
+    
+    // UPLOAD FILE JSON (INI YANG ANDA MINTA)
+    uploadJsonBtn.onclick = () => {
+        jsonFileInput.click();
+    };
+    
+    jsonFileInput.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        setStatus(`📤 Mengupload file "${file.name}"...`, "info");
+        
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            try {
+                const content = event.target.result;
+                const jsonData = JSON.parse(content);
+                
+                // Tampilkan di editor
+                jsonEditor.value = JSON.stringify(jsonData, null, 2);
+                
+                const lessonCount = (jsonData.lessons || []).length;
+                const fileSizeKB = (content.length / 1024).toFixed(1);
+                
+                setStatus(`✅ FILE "${file.name}" BERHASIL DIUPLOAD!\n📚 ${lessonCount} materi\n📦 Ukuran: ${fileSizeKB} KB\n\nSekarang klik "Validasi JSON" lalu "Simpan ke Database"`, "success");
+                
+                saveJsonBtn.disabled = false;
+                downloadJsonBtn.disabled = false;
+                
+                // Auto-select course jika ID match
+                if (jsonData.id) {
+                    const option = Array.from(courseSelect.options).find(opt => opt.value == jsonData.id);
+                    if (option) courseSelect.value = jsonData.id;
+                }
+                
+            } catch (error) {
+                setStatus(`❌ GAGAL PARSING FILE!\nError: ${error.message}\n\nPastikan file JSON valid.`, "danger");
+            }
+        };
+        reader.onerror = () => setStatus("❌ Gagal membaca file", "danger");
+        reader.readAsText(file);
+        jsonFileInput.value = "";
+    };
+    
+    // LOAD KURSUS DARI DATABASE
+    loadCourseBtn.onclick = async () => {
+        const courseId = courseSelect.value;
+        if (!courseId) {
+            setStatus("Pilih kursus terlebih dahulu!", "warning");
+            return;
+        }
+        
+        const course = coursesData.find(c => c.id == courseId);
+        if (course) {
+            jsonEditor.value = JSON.stringify(course, null, 2);
+            downloadJsonBtn.disabled = false;
+            saveJsonBtn.disabled = false;
+            setStatus(`✅ Kursus "${course.title}" dimuat (${(course.lessons || []).length} materi)`, "success");
+        } else {
+            setStatus("Gagal memuat kursus", "danger");
+        }
+    };
+    
+    // DOWNLOAD JSON DARI EDITOR
+    downloadJsonBtn.onclick = () => {
+        if (!jsonEditor.value.trim()) {
+            setStatus("Tidak ada data", "warning");
+            return;
+        }
+        try {
+            const jsonData = JSON.parse(jsonEditor.value);
+            const fileName = `course_${jsonData.id || Date.now()}_${(jsonData.title || 'course').replace(/[^a-z0-9]/gi, '_')}.json`;
+            const blob = new Blob([JSON.stringify(jsonData, null, 2)], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = fileName;
+            a.click();
+            URL.revokeObjectURL(url);
+            setStatus(`✅ File "${fileName}" didownload`, "success");
+        } catch (e) {
+            setStatus(`JSON tidak valid: ${e.message}`, "danger");
+        }
+    };
+    
+    // VALIDASI JSON
+    validateJsonBtn.onclick = () => {
+        const jsonStr = jsonEditor.value.trim();
+        if (!jsonStr) {
+            setStatus("JSON kosong! Upload file dulu.", "warning");
+            return;
+        }
+        
+        try {
+            const course = JSON.parse(jsonStr);
+            const errors = [];
             
-            document.getElementById("adminContent").innerHTML = html;
+            if (!course.title) errors.push("⚠️ Tidak ada 'title'");
             
-            let currentCourse = null;
-            const courseSelect = document.getElementById("courseSelect");
-            const jsonEditor = document.getElementById("jsonEditor");
-            const loadBtn = document.getElementById("loadCourseBtn");
-            const downloadBtn = document.getElementById("downloadJsonBtn");
-            const uploadBtn = document.getElementById("uploadJsonBtn");
-            const saveBtn = document.getElementById("saveJsonBtn");
-            const validateBtn = document.getElementById("validateJsonBtn");
-            const backBtn = document.getElementById("backBtn");
-            const jsonFileInput = document.getElementById("jsonFileInput");
-            const statusDiv = document.getElementById("jsonStatus");
-            
-            function setStatus(message, type = "info") {
-                statusDiv.innerHTML = `<div class="alert-${type}">${message}</div>`;
-                setTimeout(() => {
-                    if (statusDiv.innerHTML === `<div class="alert-${type}">${message}</div>`) {
-                        statusDiv.innerHTML = "";
-                    }
-                }, 5000);
+            if (!course.lessons || !Array.isArray(course.lessons)) {
+                errors.push("⚠️ 'lessons' harus berupa array");
+            } else {
+                const emptyLessons = course.lessons.filter(l => !l.title);
+                if (emptyLessons.length > 0) {
+                    errors.push(`⚠️ ${emptyLessons.length} materi tidak memiliki judul`);
+                }
             }
             
-            // Load course ke editor
-            loadBtn.onclick = async () => {
-                const courseId = courseSelect.value;
-                if (!courseId) {
-                    setStatus("Pilih kursus terlebih dahulu!", "warning");
-                    return;
-                }
-                
-                currentCourse = coursesData.find(c => c.id == courseId);
-                if (currentCourse) {
-                    const jsonStr = JSON.stringify(currentCourse, null, 2);
-                    jsonEditor.value = jsonStr;
-                    downloadBtn.disabled = false;
-                    uploadBtn.disabled = false;
-                    saveBtn.disabled = false;
-                    setStatus(`✅ Kursus "${currentCourse.title}" berhasil dimuat ke editor`, "success");
-                } else {
-                    setStatus("Gagal memuat kursus", "danger");
-                }
-            };
-            
-            // Download JSON
-            downloadBtn.onclick = () => {
-                if (!jsonEditor.value.trim()) {
-                    setStatus("Tidak ada data untuk didownload", "warning");
-                    return;
-                }
-                
-                try {
-                    const jsonData = JSON.parse(jsonEditor.value);
-                    const fileName = `course_${jsonData.id || Date.now()}_${(jsonData.title || 'course').replace(/[^a-z0-9]/gi, '_')}.json`;
-                    const blob = new Blob([JSON.stringify(jsonData, null, 2)], { type: "application/json" });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement("a");
-                    a.href = url;
-                    a.download = fileName;
-                    a.click();
-                    URL.revokeObjectURL(url);
-                    setStatus(`✅ File "${fileName}" berhasil didownload`, "success");
-                } catch (e) {
-                    setStatus(`JSON tidak valid: ${e.message}`, "danger");
-                }
-            };
-            
-            // Upload file JSON
-            uploadBtn.onclick = () => {
-                jsonFileInput.click();
-            };
-            
-            jsonFileInput.onchange = async (e) => {
-                const file = e.target.files[0];
-                if (!file) return;
-                
-                const reader = new FileReader();
-                reader.onload = async (event) => {
-                    try {
-                        const jsonData = JSON.parse(event.target.result);
-                        if (!jsonData.title) {
-                            throw new Error("JSON harus memiliki field 'title'");
-                        }
-                        
-                        jsonEditor.value = JSON.stringify(jsonData, null, 2);
-                        setStatus(`✅ File "${file.name}" berhasil di-load! Periksa data dan klik "Simpan JSON"`, "success");
-                        
-                        if (jsonData.id) {
-                            const option = Array.from(courseSelect.options).find(opt => opt.value == jsonData.id);
-                            if (option) {
-                                courseSelect.value = jsonData.id;
-                                currentCourse = coursesData.find(c => c.id == jsonData.id);
-                                setStatus(`ℹ️ Course ID ${jsonData.id} terdeteksi, silakan simpan untuk update`, "info");
-                            } else {
-                                setStatus(`⚠️ Course ID ${jsonData.id} tidak ditemukan, akan dibuat baru`, "warning");
-                            }
-                        }
-                        
-                        saveBtn.disabled = false;
-                        downloadBtn.disabled = false;
-                        
-                    } catch (error) {
-                        setStatus(`❌ Gagal parsing JSON: ${error.message}`, "danger");
-                    }
-                };
-                reader.readAsText(file);
-                jsonFileInput.value = "";
-            };
-            
-            // Validate JSON
-            validateBtn.onclick = () => {
-                const jsonStr = jsonEditor.value.trim();
-                if (!jsonStr) {
-                    setStatus("JSON kosong!", "warning");
-                    return;
-                }
-                
-                try {
-                    const course = JSON.parse(jsonStr);
-                    const errors = [];
-                    
-                    if (!course.title) errors.push("Missing 'title' field");
-                    if (!course.price && course.price !== 0) errors.push("Missing 'price' field");
-                    
-                    if (course.lessons && Array.isArray(course.lessons)) {
-                        course.lessons.forEach((lesson, idx) => {
-                            if (!lesson.title) errors.push(`Lesson ${idx + 1}: Missing 'title'`);
-                            if (lesson.quiz && !Array.isArray(lesson.quiz)) errors.push(`Lesson ${idx + 1}: 'quiz' must be array`);
-                        });
-                    }
-                    
-                    if (errors.length > 0) {
-                        setStatus(`❌ Validasi gagal:\n${errors.join("\n")}`, "danger");
-                    } else {
-                        const lessonCount = course.lessons?.length || 0;
-                        const quizCount = course.lessons?.reduce((sum, l) => sum + (l.quiz?.length || 0), 0) || 0;
-                        setStatus(`✅ JSON VALID!\n📚 ${lessonCount} materi\n📝 ${quizCount} soal quiz\n💰 Harga: ${formatRupiah(course.price)}`, "success");
-                    }
-                } catch (e) {
-                    setStatus(`❌ Invalid JSON syntax: ${e.message}`, "danger");
-                }
-            };
-            
-            // Save JSON ke database
-            saveBtn.onclick = async () => {
-                const jsonStr = jsonEditor.value.trim();
-                if (!jsonStr) {
-                    setStatus("Tidak ada data untuk disimpan!", "warning");
-                    return;
-                }
-                
-                try {
-                    const courseData = JSON.parse(jsonStr);
-                    
-                    if (!courseData.id) {
-                        const maxId = Math.max(...coursesData.map(c => c.id), 0);
-                        courseData.id = maxId + 1;
-                        setStatus(`ℹ️ ID baru digenerate: ${courseData.id}`, "info");
-                    }
-                    
-                    if (courseData.lessons && Array.isArray(courseData.lessons)) {
-                        courseData.lessons = courseData.lessons.map((lesson, idx) => ({
-                            ...lesson,
-                            number: lesson.number || idx + 1
-                        }));
-                    } else {
-                        courseData.lessons = [];
-                    }
-                    
-                    const confirmMsg = `Simpan kursus?\n\nJudul: ${courseData.title}\nHarga: ${formatRupiah(courseData.price)}\nMateri: ${courseData.lessons.length}\n\nLanjutkan?`;
-                    if (!confirm(confirmMsg)) return;
-                    
-                    const success = await saveCourseToDB(courseData);
-                    if (success) {
-                        setStatus(`✅ Kursus "${courseData.title}" berhasil disimpan!`, "success");
-                        await loadCourses();
-                        courseSelect.innerHTML = `<option value="">-- Pilih Kursus --</option>` + 
-                            coursesData.map(c => `<option value="${c.id}">${c.icon || '📚'} ${c.title} - ${formatRupiah(c.price)}</option>`).join('');
-                        currentCourse = courseData;
-                    }
-                } catch (e) {
-                    setStatus(`❌ Gagal menyimpan: ${e.message}`, "danger");
-                }
-            };
-            
-            backBtn.onclick = () => renderAdminDashboard();
+            if (errors.length > 0) {
+                setStatus(`⚠️ Validasi dengan catatan:\n${errors.join("\n")}\n\nTetap bisa disimpan, tapi perbaiki jika perlu.`, "warning");
+            } else {
+                const lessonCount = course.lessons?.length || 0;
+                setStatus(`✅ JSON VALID!\n📚 ${lessonCount} materi siap disimpan!`, "success");
+            }
+        } catch (e) {
+            setStatus(`❌ JSON TIDAK VALID!\nError: ${e.message}\n\nPeriksa tanda kurung, koma, dan petik.`, "danger");
         }
+    };
+    
+    // SIMPAN KE DATABASE
+    saveJsonBtn.onclick = async () => {
+        const jsonStr = jsonEditor.value.trim();
+        if (!jsonStr) {
+            setStatus("Tidak ada data!", "warning");
+            return;
+        }
+        
+        try {
+            const courseData = JSON.parse(jsonStr);
+            
+            if (!courseData.id) {
+                const maxId = Math.max(...coursesData.map(c => c.id), 0);
+                courseData.id = maxId + 1;
+            }
+            
+            if (!courseData.lessons) courseData.lessons = [];
+            
+            const lessonCount = courseData.lessons.length;
+            
+            if (!confirm(`Simpan ${lessonCount} materi ke "${courseData.title || 'Kursus Baru'}"?`)) return;
+            
+            const success = await saveCourseToDB(courseData);
+            if (success) {
+                setStatus(`✅ BERHASIL! ${lessonCount} materi disimpan.`, "success");
+                await loadCourses();
+                
+                // Refresh dropdown
+                courseSelect.innerHTML = `<option value="">-- Buat Kursus Baru atau Pilih yang Akan Diedit --</option>` + 
+                    coursesData.map(c => `<option value="${c.id}">${c.icon || '📚'} ${c.title} - ${(c.lessons || []).length} materi</option>`).join('');
+            }
+        } catch (e) {
+            setStatus(`❌ Gagal menyimpan: ${e.message}`, "danger");
+        }
+    };
+    
+    // BACK BUTTON
+    backBtn.onclick = () => renderAdminDashboard();
+}
         
         // ======================== PPOB MARKUP SETTINGS (ADMIN) ========================
         
