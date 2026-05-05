@@ -1395,9 +1395,6 @@ async function loadPPOBProducts(category) {
                         <div class="course-icon">${getProductIconPPOB(category)}</div>
                         <div class="course-title">${product.name}</div>
                         <div class="course-price">${formatRupiah(price)}</div>
-                        <div class="alert-success" style="font-size:0.8rem; margin:5px 0; padding:5px;">
-                            💰 Keuntungan: ${formatRupiah(product.markup)}
-                        </div>
                         <button class="btn-primary select-ppob-product" 
                                 data-sku="${product.sku}"
                                 data-name="${product.name}"
