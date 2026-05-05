@@ -1682,7 +1682,7 @@ function toggleDarkMode() {
             document.querySelectorAll(".reject-withdraw").forEach(btn => { btn.onclick = async () => { await supabaseClient.from('withdraw_requests').update({ status: 'rejected' }).eq('id', btn.getAttribute("data-id")); alert("Withdraw ditolak!"); renderAdminDashboard(); }; });
         }
         
-        // ======================== EDIT KURSUS JSON DENGAN UPLOAD FILE ========================
+          // ======================== EDIT KURSUS JSON DENGAN UPLOAD FILE (VERSI PERRBAIKAN) ========================
 
 async function renderEditCourseJson() {
     await loadCourses();
@@ -1701,7 +1701,6 @@ async function renderEditCourseJson() {
                 6️⃣ Klik <strong>"💾 Simpan ke Database"</strong>
             </div>
             
-            <!-- Pilih Kursus -->
             <div class="form-group">
                 <label>📚 Pilih Kursus (opsional):</label>
                 <select id="courseSelect" style="width:100%; padding:12px; border-radius:8px;">
@@ -1714,7 +1713,6 @@ async function renderEditCourseJson() {
                 </select>
             </div>
             
-            <!-- TOMBOL UPLOAD DAN DOWNLOAD -->
             <div style="display: flex; gap: 10px; margin: 15px 0; flex-wrap: wrap;">
                 <button id="downloadTemplateBtn" class="btn-edit" style="background: #27ae60; color: white;">📥 Download Template JSON (30 Materi)</button>
                 <button id="uploadJsonBtn" class="btn-primary" style="background: #3498db;">📤 Upload File JSON</button>
@@ -1723,14 +1721,12 @@ async function renderEditCourseJson() {
                 <input type="file" id="jsonFileInput" accept=".json" style="display:none;">
             </div>
             
-            <!-- JSON EDITOR -->
             <div class="form-group">
                 <label>📝 JSON Editor (otomatis terisi):</label>
                 <textarea id="jsonEditor" rows="15" style="width:100%; font-family:'Courier New', monospace; font-size:11px; padding:15px; border-radius:8px; background:#1e1e2e; color:#e0e0e0; overflow:auto;" placeholder="JSON akan muncul di sini setelah upload file..."></textarea>
                 <small>💡 File JSON akan otomatis muncul di sini setelah upload</small>
             </div>
             
-            <!-- TOMBOL SIMPAN -->
             <div style="display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap;">
                 <button id="saveJsonBtn" class="btn-success" disabled>💾 Simpan ke Database</button>
                 <button id="validateJsonBtn" class="btn-primary">✅ Validasi JSON</button>
@@ -1756,18 +1752,21 @@ async function renderEditCourseJson() {
     const jsonFileInput = document.getElementById("jsonFileInput");
     const statusDiv = document.getElementById("jsonStatus");
     
-    function setStatus(message, type = "info") {
-        statusDiv.innerHTML = `<div class="alert-${type}" style="padding:12px; border-radius:8px;">${message}</div>`;
-        setTimeout(() => {
-            if (statusDiv.innerHTML === `<div class="alert-${type}" style="padding:12px; border-radius:8px;">${message}</div>`) {
+    let currentCourseData = null;
+    
+    function setStatus(message, type) {
+        const alertClass = "alert-" + (type || "info");
+        statusDiv.innerHTML = "<div class=\"" + alertClass + "\" style=\"padding:12px; border-radius:8px;\">" + message + "</div>";
+        setTimeout(function() {
+            if (statusDiv.innerHTML === "<div class=\"" + alertClass + "\" style=\"padding:12px; border-radius:8px;\">" + message + "</div>") {
                 statusDiv.innerHTML = "";
             }
         }, 8000);
     }
     
-    // DOWNLOAD TEMPLATE JSON (30 MATERI)
-    downloadTemplateBtn.onclick = () => {
-        const template = {
+    // DOWNLOAD TEMPLATE JSON
+    downloadTemplateBtn.onclick = function() {
+        var template = {
             id: null,
             title: "Nama Kursus Anda",
             icon: "📚",
@@ -1777,19 +1776,18 @@ async function renderEditCourseJson() {
             lessons: []
         };
         
-        // Generate 30 materi template
-        for (let i = 1; i <= 30; i++) {
+        for (var i = 1; i <= 30; i++) {
             template.lessons.push({
                 number: i,
-                title: `Pertemuan ${i}: [Isi Judul Materi]`,
+                title: "Pertemuan " + i + ": [Isi Judul Materi]",
                 videoUrl: "",
                 quiz: []
             });
         }
         
-        const blob = new Blob([JSON.stringify(template, null, 2)], { type: "application/json" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
+        var blob = new Blob([JSON.stringify(template, null, 2)], { type: "application/json" });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement("a");
         a.href = url;
         a.download = "template_kursus_30_materi.json";
         a.click();
@@ -1797,164 +1795,178 @@ async function renderEditCourseJson() {
         setStatus("✅ Template 30 materi berhasil didownload! Edit file tersebut di komputer lalu upload.", "success");
     };
     
-    // UPLOAD FILE JSON (INI YANG ANDA MINTA)
-    uploadJsonBtn.onclick = () => {
+    // UPLOAD FILE JSON
+    uploadJsonBtn.onclick = function() {
         jsonFileInput.click();
     };
     
-    jsonFileInput.onchange = async (e) => {
-        const file = e.target.files[0];
+    jsonFileInput.onchange = function(e) {
+        var file = e.target.files[0];
         if (!file) return;
         
-        setStatus(`📤 Mengupload file "${file.name}"...`, "info");
+        setStatus("📤 Mengupload file \"" + file.name + "\"...", "info");
         
-        const reader = new FileReader();
-        reader.onload = async (event) => {
+        var reader = new FileReader();
+        reader.onload = function(event) {
             try {
-                const content = event.target.result;
-                const jsonData = JSON.parse(content);
+                var content = event.target.result;
+                var jsonData = JSON.parse(content);
                 
-                // Tampilkan di editor
                 jsonEditor.value = JSON.stringify(jsonData, null, 2);
                 
-                const lessonCount = (jsonData.lessons || []).length;
-                const fileSizeKB = (content.length / 1024).toFixed(1);
+                var lessonCount = (jsonData.lessons || []).length;
+                var fileSizeKB = (content.length / 1024).toFixed(1);
                 
-                setStatus(`✅ FILE "${file.name}" BERHASIL DIUPLOAD!\n📚 ${lessonCount} materi\n📦 Ukuran: ${fileSizeKB} KB\n\nSekarang klik "Validasi JSON" lalu "Simpan ke Database"`, "success");
+                setStatus("✅ FILE \"" + file.name + "\" BERHASIL DIUPLOAD!\n📚 " + lessonCount + " materi\n📦 Ukuran: " + fileSizeKB + " KB\n\nSekarang klik \"Validasi JSON\" lalu \"Simpan ke Database\"", "success");
                 
                 saveJsonBtn.disabled = false;
                 downloadJsonBtn.disabled = false;
                 
-                // Auto-select course jika ID match
                 if (jsonData.id) {
-                    const option = Array.from(courseSelect.options).find(opt => opt.value == jsonData.id);
-                    if (option) courseSelect.value = jsonData.id;
+                    var options = courseSelect.options;
+                    for (var i = 0; i < options.length; i++) {
+                        if (options[i].value == jsonData.id) {
+                            options[i].selected = true;
+                            break;
+                        }
+                    }
                 }
                 
             } catch (error) {
-                setStatus(`❌ GAGAL PARSING FILE!\nError: ${error.message}\n\nPastikan file JSON valid.`, "danger");
+                setStatus("❌ GAGAL PARSING FILE!\nError: " + error.message + "\n\nPastikan file JSON valid.", "danger");
             }
         };
-        reader.onerror = () => setStatus("❌ Gagal membaca file", "danger");
+        reader.onerror = function() {
+            setStatus("❌ Gagal membaca file", "danger");
+        };
         reader.readAsText(file);
         jsonFileInput.value = "";
     };
     
     // LOAD KURSUS DARI DATABASE
-    loadCourseBtn.onclick = async () => {
-        const courseId = courseSelect.value;
+    loadCourseBtn.onclick = async function() {
+        var courseId = courseSelect.value;
         if (!courseId) {
             setStatus("Pilih kursus terlebih dahulu!", "warning");
             return;
         }
         
-        const course = coursesData.find(c => c.id == courseId);
+        var course = coursesData.find(function(c) { return c.id == courseId; });
         if (course) {
             jsonEditor.value = JSON.stringify(course, null, 2);
             downloadJsonBtn.disabled = false;
             saveJsonBtn.disabled = false;
-            setStatus(`✅ Kursus "${course.title}" dimuat (${(course.lessons || []).length} materi)`, "success");
+            setStatus("✅ Kursus \"" + course.title + "\" dimuat (" + (course.lessons || []).length + " materi)", "success");
+            currentCourseData = course;
         } else {
             setStatus("Gagal memuat kursus", "danger");
         }
     };
     
     // DOWNLOAD JSON DARI EDITOR
-    downloadJsonBtn.onclick = () => {
+    downloadJsonBtn.onclick = function() {
         if (!jsonEditor.value.trim()) {
             setStatus("Tidak ada data", "warning");
             return;
         }
         try {
-            const jsonData = JSON.parse(jsonEditor.value);
-            const fileName = `course_${jsonData.id || Date.now()}_${(jsonData.title || 'course').replace(/[^a-z0-9]/gi, '_')}.json`;
-            const blob = new Blob([JSON.stringify(jsonData, null, 2)], { type: "application/json" });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
+            var jsonData = JSON.parse(jsonEditor.value);
+            var fileName = "course_" + (jsonData.id || Date.now()) + "_" + ((jsonData.title || "course").replace(/[^a-z0-9]/gi, "_")) + ".json";
+            var blob = new Blob([JSON.stringify(jsonData, null, 2)], { type: "application/json" });
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement("a");
             a.href = url;
             a.download = fileName;
             a.click();
             URL.revokeObjectURL(url);
-            setStatus(`✅ File "${fileName}" didownload`, "success");
+            setStatus("✅ File \"" + fileName + "\" didownload", "success");
         } catch (e) {
-            setStatus(`JSON tidak valid: ${e.message}`, "danger");
+            setStatus("JSON tidak valid: " + e.message, "danger");
         }
     };
     
     // VALIDASI JSON
-    validateJsonBtn.onclick = () => {
-        const jsonStr = jsonEditor.value.trim();
+    validateJsonBtn.onclick = function() {
+        var jsonStr = jsonEditor.value.trim();
         if (!jsonStr) {
             setStatus("JSON kosong! Upload file dulu.", "warning");
             return;
         }
         
         try {
-            const course = JSON.parse(jsonStr);
-            const errors = [];
+            var course = JSON.parse(jsonStr);
+            var errors = [];
             
             if (!course.title) errors.push("⚠️ Tidak ada 'title'");
             
             if (!course.lessons || !Array.isArray(course.lessons)) {
                 errors.push("⚠️ 'lessons' harus berupa array");
             } else {
-                const emptyLessons = course.lessons.filter(l => !l.title);
+                var emptyLessons = course.lessons.filter(function(l) { return !l.title; });
                 if (emptyLessons.length > 0) {
-                    errors.push(`⚠️ ${emptyLessons.length} materi tidak memiliki judul`);
+                    errors.push("⚠️ " + emptyLessons.length + " materi tidak memiliki judul");
                 }
             }
             
             if (errors.length > 0) {
-                setStatus(`⚠️ Validasi dengan catatan:\n${errors.join("\n")}\n\nTetap bisa disimpan, tapi perbaiki jika perlu.`, "warning");
+                setStatus("⚠️ Validasi dengan catatan:\n" + errors.join("\n") + "\n\nTetap bisa disimpan, tapi perbaiki jika perlu.", "warning");
             } else {
-                const lessonCount = course.lessons?.length || 0;
-                setStatus(`✅ JSON VALID!\n📚 ${lessonCount} materi siap disimpan!`, "success");
+                var lessonCount = course.lessons?.length || 0;
+                setStatus("✅ JSON VALID!\n📚 " + lessonCount + " materi siap disimpan!", "success");
             }
         } catch (e) {
-            setStatus(`❌ JSON TIDAK VALID!\nError: ${e.message}\n\nPeriksa tanda kurung, koma, dan petik.`, "danger");
+            setStatus("❌ JSON TIDAK VALID!\nError: " + e.message + "\n\nPeriksa tanda kurung, koma, dan petik.", "danger");
         }
     };
     
     // SIMPAN KE DATABASE
-    saveJsonBtn.onclick = async () => {
-        const jsonStr = jsonEditor.value.trim();
+    saveJsonBtn.onclick = async function() {
+        var jsonStr = jsonEditor.value.trim();
         if (!jsonStr) {
             setStatus("Tidak ada data!", "warning");
             return;
         }
         
         try {
-            const courseData = JSON.parse(jsonStr);
+            var courseData = JSON.parse(jsonStr);
             
             if (!courseData.id) {
-                const maxId = Math.max(...coursesData.map(c => c.id), 0);
+                var maxId = 0;
+                for (var i = 0; i < coursesData.length; i++) {
+                    if (coursesData[i].id > maxId) maxId = coursesData[i].id;
+                }
                 courseData.id = maxId + 1;
             }
             
             if (!courseData.lessons) courseData.lessons = [];
             
-            const lessonCount = courseData.lessons.length;
+            var lessonCount = courseData.lessons.length;
             
-            if (!confirm(`Simpan ${lessonCount} materi ke "${courseData.title || 'Kursus Baru'}"?`)) return;
+            var confirmMsg = "Simpan " + lessonCount + " materi ke \"" + (courseData.title || "Kursus Baru") + "\"?";
+            if (!confirm(confirmMsg)) return;
             
-            const success = await saveCourseToDB(courseData);
+            var success = await saveCourseToDB(courseData);
             if (success) {
-                setStatus(`✅ BERHASIL! ${lessonCount} materi disimpan.`, "success");
+                setStatus("✅ BERHASIL! " + lessonCount + " materi disimpan.", "success");
                 await loadCourses();
                 
                 // Refresh dropdown
-                courseSelect.innerHTML = `<option value="">-- Buat Kursus Baru atau Pilih yang Akan Diedit --</option>` + 
-                    coursesData.map(c => `<option value="${c.id}">${c.icon || '📚'} ${c.title} - ${(c.lessons || []).length} materi</option>`).join('');
+                var newOptions = '<option value="">-- Buat Kursus Baru atau Pilih yang Akan Diedit --</option>';
+                for (var i = 0; i < coursesData.length; i++) {
+                    var c = coursesData[i];
+                    newOptions += '<option value="' + c.id + '">' + (c.icon || '📚') + ' ' + c.title + ' - ' + (c.lessons || []).length + ' materi</option>';
+                }
+                courseSelect.innerHTML = newOptions;
             }
         } catch (e) {
-            setStatus(`❌ Gagal menyimpan: ${e.message}`, "danger");
+            setStatus("❌ Gagal menyimpan: " + e.message, "danger");
         }
     };
     
-    // BACK BUTTON
-    backBtn.onclick = () => renderAdminDashboard();
-}
-        
+    backBtn.onclick = function() {
+        renderAdminDashboard();
+    };
+}   
         // ======================== PPOB MARKUP SETTINGS (ADMIN) ========================
         
         async function renderPPOBMarkupSettings() {
