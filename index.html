@@ -386,7 +386,18 @@ async function checkAdminStatus() {
 async function loadCourses() {
     const { data } = await supabaseClient.from('courses').select('*').order('id');
     if (data && data.length > 0) {
-        coursesData = data.map(c => ({ ...c, lessons: c.lessons || [], price: c.price || 200000, telegram_group: c.telegram_group || '' }));
+        coursesData = data.map(c => ({
+            ...c,
+            lessons: (c.lessons || []).map((l, idx) => ({
+                number: l.number || idx + 1,
+                title: l.title || `Pertemuan ${idx + 1}`,
+                videoUrl: l.videoUrl || l.video_url || "",
+                content: l.content || l.text || "",
+                quiz: Array.isArray(l.quiz) ? l.quiz : []
+            })),
+            price: c.price || 200000,
+            telegram_group: c.telegram_group || ''
+        }));
     } else {
         coursesData = [
             { id: 1, title: "Baca Al-Qur'an", icon: "📖", description: "Metode tahsin sederhana, praktik dari juz 30", price: 200000, telegram_group: "", lessons: [] },
@@ -984,26 +995,72 @@ function renderLearningView() {
     document.querySelectorAll(".lesson-item").forEach(item => { item.onclick = () => { selectedLessonIndex = parseInt(item.getAttribute("data-idx")); renderLessonDetail(); }; });
 }
 
+function getEmbedUrl(url) {
+    if (!url) return null;
+    url = url.trim();
+    // YouTube: convert watch/shorts to embed
+    let ytMatch = url.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+    if (ytMatch) return `https://www.youtube.com/embed/${ytMatch[1]}?rel=0`;
+    // Google Drive: convert share link to embed
+    let driveMatch = url.match(/drive\.google\.com\/file\/d\/([^/]+)/);
+    if (driveMatch) return `https://drive.google.com/file/d/${driveMatch[1]}/preview`;
+    // Already embed URL or other
+    if (url.startsWith('http')) return url;
+    return null;
+}
+
 function renderLessonDetail() {
     let lesson = currentCourseForUser.lessons[selectedLessonIndex];
     let completed = currentUser.completedLessons[currentCourseForUser.id] || [];
     let isCompleted = completed.includes(selectedLessonIndex);
+    let hasQuiz = lesson.quiz && Array.isArray(lesson.quiz) && lesson.quiz.length > 0;
+    let embedUrl = getEmbedUrl(lesson.videoUrl);
+
+    // Render content (support HTML or plain text)
+    let contentHtml = '';
+    if (lesson.content) {
+        // Detect if it's plain text (no HTML tags) → wrap in paragraphs
+        let isPlainText = !/<[a-z][\s\S]*>/i.test(lesson.content);
+        if (isPlainText) {
+            contentHtml = `<div class="lesson-content" style="line-height:1.8; margin:15px 0; white-space:pre-wrap;">${escapeHtml(lesson.content)}</div>`;
+        } else {
+            contentHtml = `<div class="lesson-content" style="line-height:1.8; margin:15px 0;">${lesson.content}</div>`;
+        }
+    }
+
     let html = `
         <div class="tabs">
             <div class="tab" id="backToCourse">Kembali</div>
-            <div class="tab active">${lesson.title}</div>
-            <div class="tab" id="quizTab">Quiz</div>
+            <div class="tab active">${escapeHtml(lesson.title)}</div>
+            ${hasQuiz ? `<div class="tab" id="quizTab">📝 Quiz</div>` : ''}
         </div>
         <div class="card">
-            ${lesson.videoUrl ? `<div class="video-wrapper"><iframe src="${lesson.videoUrl}" frameborder="0" allowfullscreen></iframe></div>` : '<div class="alert-info">Materi akan segera ditambahkan</div>'}
-            ${!isCompleted ? `<button class="btn-success" id="markComplete">Tandai Selesai</button>` : '<div class="alert-success">Materi sudah selesai!</div>'}
-            <button id="backBtn" class="btn-back">Kembali</button>
+            <h3 style="margin-bottom:15px;">${escapeHtml(lesson.title)}</h3>
+
+            ${embedUrl ? `
+                <div class="video-wrapper">
+                    <iframe src="${embedUrl}" frameborder="0" allowfullscreen allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"></iframe>
+                </div>
+            ` : ''}
+
+            ${contentHtml}
+
+            ${!embedUrl && !lesson.content ? '<div class="alert-info">📖 Materi akan segera ditambahkan oleh instruktur.</div>' : ''}
+
+            <div style="margin-top:20px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+                ${!isCompleted ? `<button class="btn-success" id="markComplete">✅ Tandai Selesai</button>` : '<div class="alert-success" style="display:inline-block; padding:10px 20px; border-radius:40px;">✅ Materi sudah selesai!</div>'}
+                ${hasQuiz ? `<button class="btn-primary" id="quizBtnBottom">📝 Kerjakan Quiz</button>` : ''}
+                <button id="backBtn" class="btn-back">Kembali</button>
+            </div>
         </div>
     `;
     document.getElementById("appRoot").innerHTML = html;
     document.getElementById("backToCourse").onclick = () => renderLearningView();
     document.getElementById("backBtn").onclick = () => renderLearningView();
-    document.getElementById("quizTab").onclick = () => renderQuizPage();
+    if (hasQuiz) {
+        if (document.getElementById("quizTab")) document.getElementById("quizTab").onclick = () => renderQuizPage();
+        if (document.getElementById("quizBtnBottom")) document.getElementById("quizBtnBottom").onclick = () => renderQuizPage();
+    }
     if (document.getElementById("markComplete")) {
         document.getElementById("markComplete").onclick = async () => {
             let completed = currentUser.completedLessons[currentCourseForUser.id] || [];
@@ -1021,52 +1078,116 @@ function renderLessonDetail() {
 
 function renderQuizPage() {
     let lesson = currentCourseForUser.lessons[selectedLessonIndex];
-    if (!lesson.quiz) { alert("Belum ada quiz untuk materi ini."); renderLessonDetail(); return; }
+    let quiz = lesson.quiz;
+
+    // Robust check
+    if (!quiz || !Array.isArray(quiz) || quiz.length === 0) {
+        alert("Belum ada quiz untuk materi ini.");
+        renderLessonDetail();
+        return;
+    }
+
+    // Validate quiz structure — each item must have q, opt (array), jawab (number)
+    let validQuiz = quiz.filter(q => q.q && Array.isArray(q.opt) && q.opt.length >= 2 && typeof q.jawab === 'number');
+    if (validQuiz.length === 0) {
+        alert("Format quiz tidak valid. Hubungi admin.");
+        renderLessonDetail();
+        return;
+    }
+
     let existing = localStorage.getItem(`quiz_${currentUser.id}_${currentCourseForUser.id}_${selectedLessonIndex}`);
-    if (existing) { alert(`Anda sudah mengerjakan quiz ini dengan nilai: ${existing}/10`); renderLessonDetail(); return; }
+    if (existing) {
+        alert(`Anda sudah mengerjakan quiz ini dengan nilai: ${parseInt(existing) * 10}/100`);
+        renderLessonDetail();
+        return;
+    }
+
     let html = `
         <div class="tabs">
-            <div class="tab" id="backToLesson">Kembali</div>
-            <div class="tab active">Quiz: ${lesson.title}</div>
+            <div class="tab" id="backToLesson">Kembali ke Materi</div>
+            <div class="tab active">📝 Quiz: ${escapeHtml(lesson.title)}</div>
         </div>
         <div class="card">
+            <div class="alert-info" style="margin-bottom:15px;">
+                📋 Jawab semua soal berikut. Nilai minimal kelulusan: <strong>70/100</strong>
+            </div>
             <form id="quizForm">
-                ${lesson.quiz.map((q, idx) => `
-                    <div class="form-group">
-                        <label>${idx+1}. ${q.q}</label>
-                        ${q.opt.map((o, oi) => `<div><input type="radio" name="q${idx}" value="${oi}"> ${o}</div>`).join('')}
+                ${validQuiz.map((q, idx) => `
+                    <div class="form-group" style="background:var(--bg-lesson); border-radius:16px; padding:15px; margin-bottom:12px;">
+                        <label style="font-weight:bold; display:block; margin-bottom:10px;">${idx+1}. ${escapeHtml(q.q)}</label>
+                        <div style="display:flex; flex-direction:column; gap:8px;">
+                            ${q.opt.map((o, oi) => `
+                                <label style="display:flex; align-items:center; gap:10px; cursor:pointer; padding:8px 12px; border-radius:10px; border:1px solid var(--border-color); background:var(--bg-card);">
+                                    <input type="radio" name="q${idx}" value="${oi}" required style="width:auto;">
+                                    <span>${escapeHtml(o)}</span>
+                                </label>
+                            `).join('')}
+                        </div>
                     </div>
                 `).join('')}
-                <button type="submit" class="btn-success">Kirim Jawaban</button>
+                <button type="submit" class="btn-success" style="width:100%; margin-top:10px;">Kirim Jawaban</button>
             </form>
-            <div id="quizResult"></div>
+            <div id="quizResult" style="margin-top:15px;"></div>
         </div>
     `;
     document.getElementById("appRoot").innerHTML = html;
     document.getElementById("backToLesson").onclick = () => renderLessonDetail();
+
     document.getElementById("quizForm").onsubmit = async (e) => {
         e.preventDefault();
+
+        // Check all answered
+        let unanswered = validQuiz.findIndex((q, idx) => !document.querySelector(`input[name="q${idx}"]:checked`));
+        if (unanswered !== -1) {
+            alert(`Soal nomor ${unanswered + 1} belum dijawab!`);
+            return;
+        }
+
         let score = 0;
-        lesson.quiz.forEach((q, idx) => { let sel = document.querySelector(`input[name="q${idx}"]:checked`); if (sel && parseInt(sel.value) === q.jawab) score++; });
+        let reviewHtml = '';
+        validQuiz.forEach((q, idx) => {
+            let sel = document.querySelector(`input[name="q${idx}"]:checked`);
+            let chosen = sel ? parseInt(sel.value) : -1;
+            let isCorrect = chosen === q.jawab;
+            if (isCorrect) score++;
+            reviewHtml += `
+                <div style="margin:8px 0; padding:10px; border-radius:10px; background:${isCorrect ? '#d4edda' : '#f8d7da'}; border-left:4px solid ${isCorrect ? '#27ae60' : '#e74c3c'};">
+                    <strong>${idx+1}. ${escapeHtml(q.q)}</strong><br>
+                    Jawaban Anda: <em>${escapeHtml(q.opt[chosen] || '-')}</em> ${isCorrect ? '✅' : `❌ (Benar: <em>${escapeHtml(q.opt[q.jawab])}</em>)`}
+                </div>
+            `;
+        });
+
         localStorage.setItem(`quiz_${currentUser.id}_${currentCourseForUser.id}_${selectedLessonIndex}`, score);
+
         await supabaseClient.from('scores').upsert({
             user_id: currentUser.id,
             course_id: currentCourseForUser.id,
             lesson_id: selectedLessonIndex,
             quiz_score: score * 10
-        });
-        if (score >= 7) {
-            let completed = currentUser.completedLessons[currentCourseForUser.id] || [];
-            if (!completed.includes(selectedLessonIndex)) {
-                completed.push(selectedLessonIndex);
-                currentUser.completedLessons[currentCourseForUser.id] = completed;
-                supabaseClient.from('user_progress').upsert({ user_id: currentUser.id, course_id: currentCourseForUser.id, completed_lessons: completed });
+        }, { onConflict: 'user_id,course_id,lesson_id' });
+
+        if (score * 10 >= 70) {
+            let completedArr = currentUser.completedLessons[currentCourseForUser.id] || [];
+            if (!completedArr.includes(selectedLessonIndex)) {
+                completedArr.push(selectedLessonIndex);
+                currentUser.completedLessons[currentCourseForUser.id] = completedArr;
+                supabaseClient.from('user_progress').upsert({ user_id: currentUser.id, course_id: currentCourseForUser.id, completed_lessons: completedArr });
             }
-            document.getElementById("quizResult").innerHTML = `<div class="alert-success">✅ Lulus! Nilai: ${score * 10}/100</div>`;
-            setTimeout(() => { renderLearningView(); }, 2000);
-        } else {
-            document.getElementById("quizResult").innerHTML = `<div class="alert-danger">❌ Belum lulus. Nilai: ${score * 10}/100. Minimal 70.</div>`;
+            await checkAndUpdateReferralStatus();
         }
+
+        document.getElementById("quizForm").style.display = "none";
+        document.getElementById("quizResult").innerHTML = `
+            <div class="alert-${score * 10 >= 70 ? 'success' : 'danger'}" style="text-align:center; padding:20px; border-radius:16px;">
+                <div style="font-size:2rem;">${score * 10 >= 70 ? '🎉' : '😢'}</div>
+                <strong>${score * 10 >= 70 ? 'Lulus!' : 'Belum Lulus'}</strong><br>
+                Nilai: <span style="font-size:1.4rem; font-weight:bold;">${score * 10}/100</span><br>
+                ${score * 10 >= 70 ? 'Materi ditandai selesai otomatis.' : 'Nilai minimal 70. Quiz sudah tercatat.'}
+            </div>
+            <div style="margin-top:15px;"><strong>Review Jawaban:</strong>${reviewHtml}</div>
+            <button onclick="renderLearningView()" class="btn-back" style="margin-top:15px;">Kembali ke Daftar Materi</button>
+        `;
     };
 }
 async function renderProgressPage() {
@@ -1682,7 +1803,7 @@ function toggleDarkMode() {
             document.querySelectorAll(".reject-withdraw").forEach(btn => { btn.onclick = async () => { await supabaseClient.from('withdraw_requests').update({ status: 'rejected' }).eq('id', btn.getAttribute("data-id")); alert("Withdraw ditolak!"); renderAdminDashboard(); }; });
         }
         
-          // ======================== EDIT KURSUS JSON DENGAN UPLOAD FILE (VERSI PERRBAIKAN) ========================
+        // ======================== EDIT KURSUS JSON DENGAN UPLOAD FILE ========================
 
 async function renderEditCourseJson() {
     await loadCourses();
@@ -1701,6 +1822,7 @@ async function renderEditCourseJson() {
                 6️⃣ Klik <strong>"💾 Simpan ke Database"</strong>
             </div>
             
+            <!-- Pilih Kursus -->
             <div class="form-group">
                 <label>📚 Pilih Kursus (opsional):</label>
                 <select id="courseSelect" style="width:100%; padding:12px; border-radius:8px;">
@@ -1713,6 +1835,7 @@ async function renderEditCourseJson() {
                 </select>
             </div>
             
+            <!-- TOMBOL UPLOAD DAN DOWNLOAD -->
             <div style="display: flex; gap: 10px; margin: 15px 0; flex-wrap: wrap;">
                 <button id="downloadTemplateBtn" class="btn-edit" style="background: #27ae60; color: white;">📥 Download Template JSON (30 Materi)</button>
                 <button id="uploadJsonBtn" class="btn-primary" style="background: #3498db;">📤 Upload File JSON</button>
@@ -1721,12 +1844,14 @@ async function renderEditCourseJson() {
                 <input type="file" id="jsonFileInput" accept=".json" style="display:none;">
             </div>
             
+            <!-- JSON EDITOR -->
             <div class="form-group">
                 <label>📝 JSON Editor (otomatis terisi):</label>
                 <textarea id="jsonEditor" rows="15" style="width:100%; font-family:'Courier New', monospace; font-size:11px; padding:15px; border-radius:8px; background:#1e1e2e; color:#e0e0e0; overflow:auto;" placeholder="JSON akan muncul di sini setelah upload file..."></textarea>
                 <small>💡 File JSON akan otomatis muncul di sini setelah upload</small>
             </div>
             
+            <!-- TOMBOL SIMPAN -->
             <div style="display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap;">
                 <button id="saveJsonBtn" class="btn-success" disabled>💾 Simpan ke Database</button>
                 <button id="validateJsonBtn" class="btn-primary">✅ Validasi JSON</button>
@@ -1752,221 +1877,268 @@ async function renderEditCourseJson() {
     const jsonFileInput = document.getElementById("jsonFileInput");
     const statusDiv = document.getElementById("jsonStatus");
     
-    let currentCourseData = null;
-    
-    function setStatus(message, type) {
-        const alertClass = "alert-" + (type || "info");
-        statusDiv.innerHTML = "<div class=\"" + alertClass + "\" style=\"padding:12px; border-radius:8px;\">" + message + "</div>";
-        setTimeout(function() {
-            if (statusDiv.innerHTML === "<div class=\"" + alertClass + "\" style=\"padding:12px; border-radius:8px;\">" + message + "</div>") {
+    function setStatus(message, type = "info") {
+        statusDiv.innerHTML = `<div class="alert-${type}" style="padding:12px; border-radius:8px;">${message}</div>`;
+        setTimeout(() => {
+            if (statusDiv.innerHTML === `<div class="alert-${type}" style="padding:12px; border-radius:8px;">${message}</div>`) {
                 statusDiv.innerHTML = "";
             }
         }, 8000);
     }
     
-    // DOWNLOAD TEMPLATE JSON
-    downloadTemplateBtn.onclick = function() {
-        var template = {
+    // DOWNLOAD TEMPLATE JSON (30 MATERI)
+    downloadTemplateBtn.onclick = () => {
+        const template = {
             id: null,
             title: "Nama Kursus Anda",
             icon: "📚",
-            description: "Deskripsi kursus",
+            description: "Deskripsi singkat kursus ini.",
             price: 200000,
             telegram_group: "https://t.me/namagrup",
             lessons: []
         };
-        
-        for (var i = 1; i <= 30; i++) {
+
+        // Generate 30 lesson template dengan format lengkap
+        for (let i = 1; i <= 30; i++) {
             template.lessons.push({
                 number: i,
-                title: "Pertemuan " + i + ": [Isi Judul Materi]",
+                title: `Pertemuan ${i}: [Isi Judul Materi di Sini]`,
                 videoUrl: "",
-                quiz: []
+                content: `Isi materi pertemuan ${i} di sini.\n\nAnda bisa menulis beberapa paragraf.\nBaris baru akan ditampilkan dengan benar.\n\nContoh: Pembahasan topik A, B, dan C.`,
+                quiz: [
+                    {
+                        q: "Contoh soal untuk pertemuan " + i + "?",
+                        opt: ["Pilihan A", "Pilihan B", "Pilihan C", "Pilihan D"],
+                        jawab: 0
+                    },
+                    {
+                        q: "Soal kedua untuk pertemuan " + i + "?",
+                        opt: ["Jawaban 1", "Jawaban 2", "Jawaban 3", "Jawaban 4"],
+                        jawab: 1
+                    }
+                ]
             });
         }
-        
-        var blob = new Blob([JSON.stringify(template, null, 2)], { type: "application/json" });
-        var url = URL.createObjectURL(blob);
-        var a = document.createElement("a");
+
+        const blob = new Blob([JSON.stringify(template, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
         a.href = url;
         a.download = "template_kursus_30_materi.json";
         a.click();
         URL.revokeObjectURL(url);
-        setStatus("✅ Template 30 materi berhasil didownload! Edit file tersebut di komputer lalu upload.", "success");
+        setStatus(`✅ Template 30 materi berhasil didownload!<br>
+            📝 <strong>Format field yang tersedia:</strong><br>
+            &nbsp;&nbsp;• <code>title</code> — Judul materi (wajib)<br>
+            &nbsp;&nbsp;• <code>videoUrl</code> — Link YouTube/Google Drive (opsional)<br>
+            &nbsp;&nbsp;• <code>content</code> — Teks materi (opsional, bisa paragraf panjang)<br>
+            &nbsp;&nbsp;• <code>quiz</code> — Array soal: <code>{"q","opt":[],"jawab":index}</code>`, "success");
     };
     
     // UPLOAD FILE JSON
-    uploadJsonBtn.onclick = function() {
+    uploadJsonBtn.onclick = () => {
         jsonFileInput.click();
     };
-    
-    jsonFileInput.onchange = function(e) {
-        var file = e.target.files[0];
+
+    jsonFileInput.onchange = async (e) => {
+        const file = e.target.files[0];
         if (!file) return;
-        
-        setStatus("📤 Mengupload file \"" + file.name + "\"...", "info");
-        
-        var reader = new FileReader();
-        reader.onload = function(event) {
+
+        setStatus(`📤 Membaca file "${file.name}"...`, "info");
+
+        const reader = new FileReader();
+        reader.onload = async (event) => {
             try {
-                var content = event.target.result;
-                var jsonData = JSON.parse(content);
-                
+                const content = event.target.result;
+                const jsonData = JSON.parse(content);
+
+                // Normalize lessons
+                if (jsonData.lessons && Array.isArray(jsonData.lessons)) {
+                    jsonData.lessons = jsonData.lessons.map((l, idx) => ({
+                        number: l.number || idx + 1,
+                        title: l.title || `Pertemuan ${idx + 1}`,
+                        videoUrl: l.videoUrl || l.video_url || l.video || "",
+                        content: l.content || l.text || l.materi || "",
+                        quiz: Array.isArray(l.quiz) ? l.quiz.map(q => ({
+                            q: q.q || q.soal || q.pertanyaan || "",
+                            opt: Array.isArray(q.opt) ? q.opt : (Array.isArray(q.options) ? q.options : []),
+                            jawab: typeof q.jawab === 'number' ? q.jawab : (typeof q.answer === 'number' ? q.answer : 0)
+                        })).filter(q => q.q && q.opt.length >= 2) : []
+                    }));
+                }
+
                 jsonEditor.value = JSON.stringify(jsonData, null, 2);
-                
-                var lessonCount = (jsonData.lessons || []).length;
-                var fileSizeKB = (content.length / 1024).toFixed(1);
-                
-                setStatus("✅ FILE \"" + file.name + "\" BERHASIL DIUPLOAD!\n📚 " + lessonCount + " materi\n📦 Ukuran: " + fileSizeKB + " KB\n\nSekarang klik \"Validasi JSON\" lalu \"Simpan ke Database\"", "success");
-                
+
+                const lessonCount = (jsonData.lessons || []).length;
+                const withVideo = (jsonData.lessons || []).filter(l => l.videoUrl).length;
+                const withContent = (jsonData.lessons || []).filter(l => l.content).length;
+                const withQuiz = (jsonData.lessons || []).filter(l => l.quiz && l.quiz.length > 0).length;
+                const fileSizeKB = (content.length / 1024).toFixed(1);
+
+                setStatus(`✅ FILE "${file.name}" BERHASIL DIUPLOAD!<br>
+                    📚 <strong>${lessonCount}</strong> materi<br>
+                    🎬 <strong>${withVideo}</strong> materi dengan video<br>
+                    📝 <strong>${withContent}</strong> materi dengan teks konten<br>
+                    📋 <strong>${withQuiz}</strong> materi dengan quiz<br>
+                    📦 Ukuran: ${fileSizeKB} KB<br><br>
+                    Klik <strong>"✅ Validasi JSON"</strong> lalu <strong>"💾 Simpan ke Database"</strong>`, "success");
+
                 saveJsonBtn.disabled = false;
                 downloadJsonBtn.disabled = false;
-                
+
                 if (jsonData.id) {
-                    var options = courseSelect.options;
-                    for (var i = 0; i < options.length; i++) {
-                        if (options[i].value == jsonData.id) {
-                            options[i].selected = true;
-                            break;
-                        }
-                    }
+                    const option = Array.from(courseSelect.options).find(opt => opt.value == jsonData.id);
+                    if (option) courseSelect.value = jsonData.id;
                 }
-                
+
             } catch (error) {
-                setStatus("❌ GAGAL PARSING FILE!\nError: " + error.message + "\n\nPastikan file JSON valid.", "danger");
+                setStatus(`❌ GAGAL PARSING FILE!<br>Error: ${error.message}<br><br>Pastikan file JSON valid. Gunakan <a href="https://jsonlint.com" target="_blank">jsonlint.com</a> untuk memeriksa.`, "danger");
             }
         };
-        reader.onerror = function() {
-            setStatus("❌ Gagal membaca file", "danger");
-        };
+        reader.onerror = () => setStatus("❌ Gagal membaca file", "danger");
         reader.readAsText(file);
         jsonFileInput.value = "";
     };
     
     // LOAD KURSUS DARI DATABASE
-    loadCourseBtn.onclick = async function() {
-        var courseId = courseSelect.value;
+    loadCourseBtn.onclick = async () => {
+        const courseId = courseSelect.value;
         if (!courseId) {
             setStatus("Pilih kursus terlebih dahulu!", "warning");
             return;
         }
         
-        var course = coursesData.find(function(c) { return c.id == courseId; });
+        const course = coursesData.find(c => c.id == courseId);
         if (course) {
             jsonEditor.value = JSON.stringify(course, null, 2);
             downloadJsonBtn.disabled = false;
             saveJsonBtn.disabled = false;
-            setStatus("✅ Kursus \"" + course.title + "\" dimuat (" + (course.lessons || []).length + " materi)", "success");
-            currentCourseData = course;
+            setStatus(`✅ Kursus "${course.title}" dimuat (${(course.lessons || []).length} materi)`, "success");
         } else {
             setStatus("Gagal memuat kursus", "danger");
         }
     };
     
     // DOWNLOAD JSON DARI EDITOR
-    downloadJsonBtn.onclick = function() {
+    downloadJsonBtn.onclick = () => {
         if (!jsonEditor.value.trim()) {
             setStatus("Tidak ada data", "warning");
             return;
         }
         try {
-            var jsonData = JSON.parse(jsonEditor.value);
-            var fileName = "course_" + (jsonData.id || Date.now()) + "_" + ((jsonData.title || "course").replace(/[^a-z0-9]/gi, "_")) + ".json";
-            var blob = new Blob([JSON.stringify(jsonData, null, 2)], { type: "application/json" });
-            var url = URL.createObjectURL(blob);
-            var a = document.createElement("a");
+            const jsonData = JSON.parse(jsonEditor.value);
+            const fileName = `course_${jsonData.id || Date.now()}_${(jsonData.title || 'course').replace(/[^a-z0-9]/gi, '_')}.json`;
+            const blob = new Blob([JSON.stringify(jsonData, null, 2)], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
             a.href = url;
             a.download = fileName;
             a.click();
             URL.revokeObjectURL(url);
-            setStatus("✅ File \"" + fileName + "\" didownload", "success");
+            setStatus(`✅ File "${fileName}" didownload`, "success");
         } catch (e) {
-            setStatus("JSON tidak valid: " + e.message, "danger");
+            setStatus(`JSON tidak valid: ${e.message}`, "danger");
         }
     };
     
     // VALIDASI JSON
-    validateJsonBtn.onclick = function() {
-        var jsonStr = jsonEditor.value.trim();
+    validateJsonBtn.onclick = () => {
+        const jsonStr = jsonEditor.value.trim();
         if (!jsonStr) {
             setStatus("JSON kosong! Upload file dulu.", "warning");
             return;
         }
-        
+
         try {
-            var course = JSON.parse(jsonStr);
-            var errors = [];
-            
-            if (!course.title) errors.push("⚠️ Tidak ada 'title'");
-            
+            const course = JSON.parse(jsonStr);
+            const errors = [];
+            const warnings = [];
+
+            if (!course.title) errors.push("❌ Field 'title' (judul kursus) wajib diisi");
+            if (!course.id && course.id !== null) warnings.push("⚠️ Field 'id' tidak ada — akan dibuat otomatis");
+
             if (!course.lessons || !Array.isArray(course.lessons)) {
-                errors.push("⚠️ 'lessons' harus berupa array");
+                errors.push("❌ Field 'lessons' harus berupa array");
             } else {
-                var emptyLessons = course.lessons.filter(function(l) { return !l.title; });
-                if (emptyLessons.length > 0) {
-                    errors.push("⚠️ " + emptyLessons.length + " materi tidak memiliki judul");
+                const emptyTitle = course.lessons.filter(l => !l.title);
+                if (emptyTitle.length > 0) warnings.push(`⚠️ ${emptyTitle.length} materi tidak punya judul`);
+
+                let quizErrors = 0;
+                course.lessons.forEach((l, idx) => {
+                    if (l.quiz && Array.isArray(l.quiz)) {
+                        l.quiz.forEach((q, qi) => {
+                            if (!q.q) quizErrors++;
+                            if (!Array.isArray(q.opt) || q.opt.length < 2) quizErrors++;
+                            if (typeof q.jawab !== 'number') quizErrors++;
+                        });
+                    }
+                });
+                if (quizErrors > 0) warnings.push(`⚠️ ${quizErrors} soal quiz dengan format tidak lengkap (akan dilewati saat menampilkan)`);
+
+                const lessonCount = course.lessons.length;
+                const withVideo = course.lessons.filter(l => l.videoUrl).length;
+                const withContent = course.lessons.filter(l => l.content).length;
+                const withQuiz = course.lessons.filter(l => l.quiz && l.quiz.length > 0).length;
+
+                if (errors.length === 0) {
+                    setStatus(`✅ JSON VALID!<br>
+                        📚 <strong>${lessonCount}</strong> materi siap disimpan<br>
+                        🎬 ${withVideo} dengan video | 📝 ${withContent} dengan konten teks | 📋 ${withQuiz} dengan quiz<br>
+                        ${warnings.length > 0 ? '<br>' + warnings.join('<br>') : ''}`, "success");
+                    return;
                 }
             }
-            
+
             if (errors.length > 0) {
-                setStatus("⚠️ Validasi dengan catatan:\n" + errors.join("\n") + "\n\nTetap bisa disimpan, tapi perbaiki jika perlu.", "warning");
+                setStatus(`${errors.join('<br>')}${warnings.length > 0 ? '<br>' + warnings.join('<br>') : ''}`, "danger");
             } else {
-                var lessonCount = course.lessons?.length || 0;
-                setStatus("✅ JSON VALID!\n📚 " + lessonCount + " materi siap disimpan!", "success");
+                setStatus(warnings.join('<br>') || "✅ Valid!", warnings.length > 0 ? "warning" : "success");
             }
         } catch (e) {
-            setStatus("❌ JSON TIDAK VALID!\nError: " + e.message + "\n\nPeriksa tanda kurung, koma, dan petik.", "danger");
+            setStatus(`❌ JSON TIDAK VALID!<br>Error: <code>${e.message}</code><br><br>Periksa tanda kurung, koma, dan petik ganda.`, "danger");
         }
     };
     
     // SIMPAN KE DATABASE
-    saveJsonBtn.onclick = async function() {
-        var jsonStr = jsonEditor.value.trim();
+    saveJsonBtn.onclick = async () => {
+        const jsonStr = jsonEditor.value.trim();
         if (!jsonStr) {
             setStatus("Tidak ada data!", "warning");
             return;
         }
         
         try {
-            var courseData = JSON.parse(jsonStr);
+            const courseData = JSON.parse(jsonStr);
             
             if (!courseData.id) {
-                var maxId = 0;
-                for (var i = 0; i < coursesData.length; i++) {
-                    if (coursesData[i].id > maxId) maxId = coursesData[i].id;
-                }
+                const maxId = Math.max(...coursesData.map(c => c.id), 0);
                 courseData.id = maxId + 1;
             }
             
             if (!courseData.lessons) courseData.lessons = [];
             
-            var lessonCount = courseData.lessons.length;
+            const lessonCount = courseData.lessons.length;
             
-            var confirmMsg = "Simpan " + lessonCount + " materi ke \"" + (courseData.title || "Kursus Baru") + "\"?";
-            if (!confirm(confirmMsg)) return;
+            if (!confirm(`Simpan ${lessonCount} materi ke "${courseData.title || 'Kursus Baru'}"?`)) return;
             
-            var success = await saveCourseToDB(courseData);
+            const success = await saveCourseToDB(courseData);
             if (success) {
-                setStatus("✅ BERHASIL! " + lessonCount + " materi disimpan.", "success");
+                setStatus(`✅ BERHASIL! ${lessonCount} materi disimpan.`, "success");
                 await loadCourses();
                 
                 // Refresh dropdown
-                var newOptions = '<option value="">-- Buat Kursus Baru atau Pilih yang Akan Diedit --</option>';
-                for (var i = 0; i < coursesData.length; i++) {
-                    var c = coursesData[i];
-                    newOptions += '<option value="' + c.id + '">' + (c.icon || '📚') + ' ' + c.title + ' - ' + (c.lessons || []).length + ' materi</option>';
-                }
-                courseSelect.innerHTML = newOptions;
+                courseSelect.innerHTML = `<option value="">-- Buat Kursus Baru atau Pilih yang Akan Diedit --</option>` + 
+                    coursesData.map(c => `<option value="${c.id}">${c.icon || '📚'} ${c.title} - ${(c.lessons || []).length} materi</option>`).join('');
             }
         } catch (e) {
-            setStatus("❌ Gagal menyimpan: " + e.message, "danger");
+            setStatus(`❌ Gagal menyimpan: ${e.message}`, "danger");
         }
     };
     
-    backBtn.onclick = function() {
-        renderAdminDashboard();
-    };
-}   
+    // BACK BUTTON
+    backBtn.onclick = () => renderAdminDashboard();
+}
+        
         // ======================== PPOB MARKUP SETTINGS (ADMIN) ========================
         
         async function renderPPOBMarkupSettings() {
@@ -2167,10 +2339,21 @@ async function renderEditCourseJson() {
                 <div class="card">
                     <h2>Tambah Materi Baru</h2>
                     <form id="addLessonForm">
-                        <div class="form-group"><label>Judul</label><input type="text" id="title" required></div>
-                        <div class="form-group"><label>URL Video</label><input type="text" id="videoUrl" placeholder="https://www.youtube.com/embed/..."></div>
-                        <div class="form-group"><label>Quiz (JSON)</label><textarea id="quiz" rows="5" placeholder='[{"q":"Soal 1","opt":["A","B","C","D"],"jawab":0}]'></textarea></div>
-                        <button type="submit" class="btn-success">Tambah</button>
+                        <div class="form-group"><label>Judul Materi</label><input type="text" id="title" required placeholder="Contoh: Pertemuan 1 - Pengenalan Huruf Hijaiyah"></div>
+                        <div class="form-group"><label>URL Video (YouTube/Google Drive, opsional)</label><input type="text" id="videoUrl" placeholder="https://www.youtube.com/watch?v=... atau https://youtu.be/..."></div>
+                        <div class="form-group"><label>Konten Teks Materi (opsional)</label><textarea id="content" rows="6" placeholder="Tulis isi materi di sini. Bisa berupa penjelasan, catatan, dll.&#10;&#10;Baris baru akan ditampilkan dengan benar."></textarea></div>
+                        <div class="form-group">
+                            <label>Quiz (format JSON, opsional)</label>
+                            <textarea id="quiz" rows="8" placeholder='[
+  {
+    "q": "Apa arti Bismillah?",
+    "opt": ["Dengan nama Allah", "Segala puji", "Maha Besar", "Maha Kuasa"],
+    "jawab": 0
+  }
+]'></textarea>
+                            <small>Format: array objek dengan field "q" (soal), "opt" (pilihan, min 2), "jawab" (indeks jawaban benar, mulai dari 0)</small>
+                        </div>
+                        <button type="submit" class="btn-success">Tambah Materi</button>
                         <button type="button" id="backBtn" class="btn-back">Kembali</button>
                     </form>
                 </div>
@@ -2180,16 +2363,25 @@ async function renderEditCourseJson() {
             document.getElementById("addLessonForm").onsubmit = async (e) => {
                 e.preventDefault();
                 let quiz = [];
-                try { quiz = JSON.parse(document.getElementById("quiz").value || "[]"); } catch(e) { quiz = []; }
-                let newLesson = { 
+                try {
+                    let rawQuiz = document.getElementById("quiz").value.trim();
+                    if (rawQuiz) quiz = JSON.parse(rawQuiz);
+                    // Validate quiz items
+                    quiz = quiz.filter(q => q.q && Array.isArray(q.opt) && q.opt.length >= 2 && typeof q.jawab === 'number');
+                } catch(e) {
+                    alert("Format quiz tidak valid! Periksa JSON quiz Anda.");
+                    return;
+                }
+                let newLesson = {
                     number: (course.lessons.length + 1),
-                    title: document.getElementById("title").value, 
-                    videoUrl: document.getElementById("videoUrl").value, 
-                    quiz: quiz 
+                    title: document.getElementById("title").value,
+                    videoUrl: document.getElementById("videoUrl").value.trim(),
+                    content: document.getElementById("content").value.trim(),
+                    quiz: quiz
                 };
                 course.lessons.push(newLesson);
                 await saveCourseToDB(course);
-                alert(`Materi ditambahkan!`);
+                alert(`Materi "${newLesson.title}" berhasil ditambahkan!`);
                 renderLessonsManager();
             };
         }
@@ -2199,12 +2391,17 @@ async function renderEditCourseJson() {
             let lesson = course.lessons[editingLessonIndex];
             let html = `
                 <div class="card">
-                    <h2>Edit Materi: ${lesson.title}</h2>
+                    <h2>Edit Materi: ${escapeHtml(lesson.title)}</h2>
                     <form id="editLessonForm">
-                        <div class="form-group"><label>Judul</label><input type="text" id="title" value="${lesson.title}"></div>
-                        <div class="form-group"><label>URL Video</label><input type="text" id="videoUrl" value="${lesson.videoUrl || ''}"></div>
-                        <div class="form-group"><label>Quiz (JSON)</label><textarea id="quiz" rows="5">${JSON.stringify(lesson.quiz || [], null, 2)}</textarea></div>
-                        <button type="submit" class="btn-success">Simpan</button>
+                        <div class="form-group"><label>Judul Materi</label><input type="text" id="title" value="${escapeHtml(lesson.title)}"></div>
+                        <div class="form-group"><label>URL Video (YouTube/Google Drive, opsional)</label><input type="text" id="videoUrl" value="${escapeHtml(lesson.videoUrl || '')}"></div>
+                        <div class="form-group"><label>Konten Teks Materi (opsional)</label><textarea id="content" rows="6">${escapeHtml(lesson.content || '')}</textarea></div>
+                        <div class="form-group">
+                            <label>Quiz (JSON)</label>
+                            <textarea id="quiz" rows="10" style="font-family:monospace; font-size:12px;">${escapeHtml(JSON.stringify(lesson.quiz || [], null, 2))}</textarea>
+                            <small>Format: [{"q":"soal","opt":["A","B","C","D"],"jawab":0}] — "jawab" adalah indeks jawaban benar (mulai 0)</small>
+                        </div>
+                        <button type="submit" class="btn-success">Simpan Perubahan</button>
                         <button type="button" id="backBtn" class="btn-back">Kembali</button>
                     </form>
                 </div>
@@ -2214,12 +2411,20 @@ async function renderEditCourseJson() {
             document.getElementById("editLessonForm").onsubmit = async (e) => {
                 e.preventDefault();
                 let quiz = [];
-                try { quiz = JSON.parse(document.getElementById("quiz").value || "[]"); } catch(e) { quiz = []; }
+                try {
+                    let rawQuiz = document.getElementById("quiz").value.trim();
+                    if (rawQuiz) quiz = JSON.parse(rawQuiz);
+                    quiz = quiz.filter(q => q.q && Array.isArray(q.opt) && q.opt.length >= 2 && typeof q.jawab === 'number');
+                } catch(e) {
+                    alert("Format quiz tidak valid! Periksa JSON quiz Anda.");
+                    return;
+                }
                 lesson.title = document.getElementById("title").value;
-                lesson.videoUrl = document.getElementById("videoUrl").value;
+                lesson.videoUrl = document.getElementById("videoUrl").value.trim();
+                lesson.content = document.getElementById("content").value.trim();
                 lesson.quiz = quiz;
                 await saveCourseToDB(course);
-                alert("Materi disimpan!");
+                alert("Materi berhasil disimpan!");
                 renderLessonsManager();
             };
         }
