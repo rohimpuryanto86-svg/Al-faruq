@@ -621,6 +621,7 @@ function renderForgotPassword() {
 
 async function renderUserDashboard() {
     await checkAndUpdateReferralStatus();
+    await checkAndAwardBadges();
     let overall = getOverallProgress();
     let html = `<div class="tabs"><div class="tab active">Dashboard</div><div class="tab" id="coursesTab">Beli Kursus</div>
         <div class="tab" id="progressTab">Progress</div><div class="tab" id="walletTab">Wallet</div>
