@@ -1246,6 +1246,7 @@ async function topUpWallet(amount) {
 
 async function renderTopUpPage() {
     let whatsapp = appSettings["default_whatsapp_number"] || settings.defaultWhatsappNumber || "08xxxxxxxxxx";
+    
     let html = `
         <div class="tabs">
             <div class="tab" id="backToWallet">Kembali ke Wallet</div>
@@ -1255,10 +1256,10 @@ async function renderTopUpPage() {
             <h2>Top Up Wallet</h2>
             <div class="alert-info">Pilih nominal top up:</div>
             <div class="btn-group">
-                <button id="topUp10Btn" class="btn-success">Rp 10.000</button>
-                <button id="topUp50Btn" class="btn-success">Rp 50.000</button>
-                <button id="topUp100Btn" class="btn-success">Rp 100.000</button>
-                <button id="topUpCustomBtn" class="btn-edit">Custom</button>
+                <button type="button" id="topUp10Btn" class="btn-success">Rp 10.000</button>
+                <button type="button" id="topUp50Btn" class="btn-success">Rp 50.000</button>
+                <button type="button" id="topUp100Btn" class="btn-success">Rp 100.000</button>
+                <button type="button" id="topUpCustomBtn" class="btn-edit">Custom</button>
             </div>
             <hr>
             <div class="alert-warning">
@@ -1272,35 +1273,78 @@ async function renderTopUpPage() {
             <div class="alert-info">Setelah transfer, upload bukti transfer di bawah ini:</div>
             <form id="topUpForm">
                 <div class="form-group"><label>Nominal</label><input type="number" id="amount" min="10000" required></div>
-                <div class="form-group"><label>Upload Bukti Transfer</label><input type="file" id="proof" accept="image/*" required></div>
-                <button type="submit" class="btn-success">Kirim Request Top Up</button>
+                <div class="form-group"><label>Upload Bukti Transfer</label><input type="file" id="proof" accept="image/*"></div>
+                <button type="submit" class="btn-success" id="submitTopUpBtn">Kirim Request Top Up</button>
             </form>
         </div>
     `;
+    
     document.getElementById("appRoot").innerHTML = html;
+    
+    // Event untuk tombol nominal
     document.getElementById("backToWallet").onclick = () => renderWalletPage();
     document.getElementById("topUp10Btn").onclick = () => { document.getElementById("amount").value = 10000; };
     document.getElementById("topUp50Btn").onclick = () => { document.getElementById("amount").value = 50000; };
     document.getElementById("topUp100Btn").onclick = () => { document.getElementById("amount").value = 100000; };
-    document.getElementById("topUpCustomBtn").onclick = () => { let amt = prompt("Masukkan nominal:", "50000"); if (amt && parseInt(amt) >= 10000) document.getElementById("amount").value = parseInt(amt); else alert("Minimal Rp 10.000"); };
-    document.getElementById("topUpForm").onsubmit = async (e) => {
+    document.getElementById("topUpCustomBtn").onclick = () => { 
+        let amt = prompt("Masukkan nominal:", "50000"); 
+        if (amt && parseInt(amt) >= 10000) document.getElementById("amount").value = parseInt(amt); 
+        else alert("Minimal Rp 10.000"); 
+    };
+    
+    // EVENT UNTUK FORM SUBMIT
+    const form = document.getElementById("topUpForm");
+    form.onsubmit = async (e) => {
         e.preventDefault();
+        console.log("Form submitted!"); // Cek apakah masuk sini
+        
         let amount = parseInt(document.getElementById("amount").value);
         let file = document.getElementById("proof").files[0];
-        if (!file) { alert("Upload bukti transfer!"); return; }
-        let proofUrl = await uploadToImgBBViaEdge(file);
-        await supabaseClient.from('withdraw_requests').insert({
+        
+        if (!amount || amount < 10000) {
+            alert("Minimal top up Rp 10.000");
+            return;
+        }
+        
+        // Tampilkan loading
+        let btn = document.getElementById("submitTopUpBtn");
+        let originalText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = "Memproses...";
+        
+        let proofUrl = "manual_" + Date.now();
+        
+        // Coba upload jika ada file
+        if (file) {
+            try {
+                proofUrl = await uploadToImgBBViaEdge(file);
+            } catch (err) {
+                console.warn("Upload error:", err);
+                proofUrl = "upload_failed_" + Date.now();
+            }
+        }
+        
+        // Insert ke database
+        const { data, error } = await supabaseClient.from('withdraw_requests').insert({
             user_id: currentUser.id,
             amount: amount,
             type: "topup",
             proof_url: proofUrl,
             status: "pending"
         });
-        alert("✅ Request top up terkirim! Menunggu konfirmasi admin.");
-        renderWalletPage();
+        
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+        
+        if (error) {
+            console.error("Insert error:", error);
+            alert("❌ Gagal: " + error.message);
+        } else {
+            alert("✅ Request top up terkirim! Menunggu konfirmasi admin.");
+            renderWalletPage();
+        }
     };
-}
-
+        }
 // ======================== PPOB PAGE (REAL DIGIFLAZZ) ========================
 
 async function renderPPOBPage() {
