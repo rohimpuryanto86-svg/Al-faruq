@@ -325,6 +325,7 @@ async function loadAppSettings() {
             if (s.key === 'early_bird_discount') settings.earlyBirdDiscount = parseInt(s.value);
             if (s.key === 'early_bird_end_date') settings.earlyBirdEndDate = s.value;
             if (s.key === 'default_whatsapp_number') settings.defaultWhatsappNumber = s.value;
+            
         });
     }
 }
@@ -341,7 +342,14 @@ async function loadBadges() {
 
 async function loadUserProfile() {
     if (!currentUser) return;
-    const { data, error } = await supabaseClient.from('profiles').select('*').eq('user_id', currentUser.id).single();
+    
+    // Ambil data profile
+    const { data, error } = await supabaseClient
+        .from('profiles')
+        .select('*')
+        .eq('user_id', currentUser.id)
+        .single();
+    
     if (data) {
         currentUser.profile = data;
         currentUser.name = data.full_name;
@@ -354,9 +362,25 @@ async function loadUserProfile() {
         currentUser.isBundle = data.is_bundle || false;
         currentUser.commission = data.commission || 0;
         currentUser.completedLessons = {};
-        await loadUserProgress();
-        await loadUserBadges();
-        await loadScores();
+        
+        // ========== AMBIL PROGRESS DARI SUPABASE ==========
+        const { data: progressData } = await supabaseClient
+            .from('user_progress')
+            .select('*')
+            .eq('user_id', currentUser.id);
+        
+        if (progressData) {
+            progressData.forEach(p => {
+                currentUser.completedLessons[p.course_id] = p.completed_lessons || [];
+            });
+        }
+        
+        // ========== AMBIL SCORES DARI SUPABASE ==========
+        const { data: scoresData } = await supabaseClient
+            .from('scores')
+            .select('*')
+            .eq('user_id', currentUser.id);
+        currentUser.scores = scoresData || [];
     }
 }
 
@@ -1061,19 +1085,36 @@ function renderLessonDetail() {
         if (document.getElementById("quizTab")) document.getElementById("quizTab").onclick = () => renderQuizPage();
         if (document.getElementById("quizBtnBottom")) document.getElementById("quizBtnBottom").onclick = () => renderQuizPage();
     }
-    if (document.getElementById("markComplete")) {
-        document.getElementById("markComplete").onclick = async () => {
-            let completed = currentUser.completedLessons[currentCourseForUser.id] || [];
-            if (!completed.includes(selectedLessonIndex)) {
-                completed.push(selectedLessonIndex);
-                currentUser.completedLessons[currentCourseForUser.id] = completed;
-                await supabaseClient.from('user_progress').upsert({ user_id: currentUser.id, course_id: currentCourseForUser.id, completed_lessons: completed });
-                alert("Materi selesai! Progress tersimpan.");
-                await checkAndUpdateReferralStatus();
-                renderLearningView();
+    
+}if (document.getElementById("markComplete")) {
+    document.getElementById("markComplete").onclick = async () => {
+        let completed = currentUser.completedLessons[currentCourseForUser.id] || [];
+        
+        if (!completed.includes(selectedLessonIndex)) {
+            completed.push(selectedLessonIndex);
+            currentUser.completedLessons[currentCourseForUser.id] = completed;
+            
+            // ========== SIMPAN KE SUPABASE ==========
+            const { error } = await supabaseClient
+                .from('user_progress')
+                .upsert({
+                    user_id: currentUser.id,
+                    course_id: currentCourseForUser.id,
+                    completed_lessons: completed,
+                    last_accessed: new Date().toISOString()
+                }, { onConflict: 'user_id, course_id' });
+            
+            if (error) {
+                console.error("Error saving progress:", error);
+                alert("Gagal menyimpan progress!");
+                return;
             }
-        };
-    }
+            
+            alert("✅ Materi selesai! Progress tersimpan.");
+            await checkAndUpdateReferralStatus();
+            renderLearningView();
+        }
+    };
 }
 
 function renderQuizPage() {
@@ -1134,60 +1175,52 @@ function renderQuizPage() {
     document.getElementById("backToLesson").onclick = () => renderLessonDetail();
 
     document.getElementById("quizForm").onsubmit = async (e) => {
-        e.preventDefault();
-
-        // Check all answered
-        let unanswered = validQuiz.findIndex((q, idx) => !document.querySelector(`input[name="q${idx}"]:checked`));
-        if (unanswered !== -1) {
-            alert(`Soal nomor ${unanswered + 1} belum dijawab!`);
-            return;
-        }
-
-        let score = 0;
-        let reviewHtml = '';
-        validQuiz.forEach((q, idx) => {
-            let sel = document.querySelector(`input[name="q${idx}"]:checked`);
-            let chosen = sel ? parseInt(sel.value) : -1;
-            let isCorrect = chosen === q.jawab;
-            if (isCorrect) score++;
-            reviewHtml += `
-                <div style="margin:8px 0; padding:10px; border-radius:10px; background:${isCorrect ? '#d4edda' : '#f8d7da'}; border-left:4px solid ${isCorrect ? '#27ae60' : '#e74c3c'};">
-                    <strong>${idx+1}. ${escapeHtml(q.q)}</strong><br>
-                    Jawaban Anda: <em>${escapeHtml(q.opt[chosen] || '-')}</em> ${isCorrect ? '✅' : `❌ (Benar: <em>${escapeHtml(q.opt[q.jawab])}</em>)`}
-                </div>
-            `;
-        });
-
-        localStorage.setItem(`quiz_${currentUser.id}_${currentCourseForUser.id}_${selectedLessonIndex}`, score);
-
-        await supabaseClient.from('scores').upsert({
+    e.preventDefault();
+    let score = 0;
+    
+    lesson.quiz.forEach((q, idx) => { 
+        let sel = document.querySelector(`input[name="q${idx}"]:checked`); 
+        if (sel && parseInt(sel.value) === q.jawab) score++; 
+    });
+    
+    // ========== SIMPAN KE SUPABASE (BUKAN LOCALSTORAGE) ==========
+    const { error } = await supabaseClient
+        .from('scores')
+        .upsert({
             user_id: currentUser.id,
             course_id: currentCourseForUser.id,
             lesson_id: selectedLessonIndex,
-            quiz_score: score * 10
-        }, { onConflict: 'user_id,course_id,lesson_id' });
-
-        if (score * 10 >= 70) {
-            let completedArr = currentUser.completedLessons[currentCourseForUser.id] || [];
-            if (!completedArr.includes(selectedLessonIndex)) {
-                completedArr.push(selectedLessonIndex);
-                currentUser.completedLessons[currentCourseForUser.id] = completedArr;
-                supabaseClient.from('user_progress').upsert({ user_id: currentUser.id, course_id: currentCourseForUser.id, completed_lessons: completedArr });
-            }
-            await checkAndUpdateReferralStatus();
+            quiz_score: score * 10,
+            taken_at: new Date().toISOString()
+        }, { onConflict: 'user_id, course_id, lesson_id' });
+    
+    if (error) {
+        console.error("Error saving score:", error);
+        alert("Gagal menyimpan nilai!");
+        return;
+    }
+    
+    if (score >= 7) {
+        // Tandai materi selesai
+        let completed = currentUser.completedLessons[currentCourseForUser.id] || [];
+        if (!completed.includes(selectedLessonIndex)) {
+            completed.push(selectedLessonIndex);
+            currentUser.completedLessons[currentCourseForUser.id] = completed;
+            
+            await supabaseClient
+                .from('user_progress')
+                .upsert({
+                    user_id: currentUser.id,
+                    course_id: currentCourseForUser.id,
+                    completed_lessons: completed
+                }, { onConflict: 'user_id, course_id' });
         }
-
-        document.getElementById("quizForm").style.display = "none";
-        document.getElementById("quizResult").innerHTML = `
-            <div class="alert-${score * 10 >= 70 ? 'success' : 'danger'}" style="text-align:center; padding:20px; border-radius:16px;">
-                <div style="font-size:2rem;">${score * 10 >= 70 ? '🎉' : '😢'}</div>
-                <strong>${score * 10 >= 70 ? 'Lulus!' : 'Belum Lulus'}</strong><br>
-                Nilai: <span style="font-size:1.4rem; font-weight:bold;">${score * 10}/100</span><br>
-                ${score * 10 >= 70 ? 'Materi ditandai selesai otomatis.' : 'Nilai minimal 70. Quiz sudah tercatat.'}
-            </div>
-            <div style="margin-top:15px;"><strong>Review Jawaban:</strong>${reviewHtml}</div>
-            <button onclick="renderLearningView()" class="btn-back" style="margin-top:15px;">Kembali ke Daftar Materi</button>
-        `;
+        
+        document.getElementById("quizResult").innerHTML = `<div class="alert-success">✅ Lulus! Nilai: ${score * 10}/100</div>`;
+        setTimeout(() => { renderLearningView(); }, 2000);
+    } else {
+        document.getElementById("quizResult").innerHTML = `<div class="alert-danger">❌ Belum lulus. Nilai: ${score * 10}/100. Minimal 70.</div>`;
+    
     };
 }
 async function renderProgressPage() {
