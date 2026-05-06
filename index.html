@@ -698,7 +698,7 @@ function renderQuizPage() {
         let score = 0;
         validQuiz.forEach((q, idx) => { let sel = document.querySelector(`input[name="q${idx}"]:checked`); if (sel && parseInt(sel.value) === q.jawab) score++; });
         const { error } = await supabaseClient.from('scores').upsert({ user_id: currentUser.id, course_id: currentCourseForUser.id, lesson_id: selectedLessonIndex, quiz_score: score * 10, taken_at: new Date().toISOString() }, { onConflict: 'user_id, course_id, lesson_id' });
-        if (error) { console.error("Error saving score:", error); alert("Gagal menyimpan nilai!"); return; }
+        if (error) { console.error("Error saving score:", error); alert("Gagal menyimpan nilai!\n\nDetail: " + (error.message || error.details || JSON.stringify(error))); return; }
         if (score >= 7) {
             let completed = currentUser.completedLessons[currentCourseForUser.id] || [];
             if (!completed.includes(selectedLessonIndex)) { completed.push(selectedLessonIndex); currentUser.completedLessons[currentCourseForUser.id] = completed;
