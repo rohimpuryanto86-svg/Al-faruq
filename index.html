@@ -375,25 +375,24 @@ const PPOB_PRODUCTS = {
     bpjs: [
         { sku: "bpjs1m", name: "BPJS Kesehatan 1 Bulan", nominal: 1, basePrice: 45000, markup: 5000 },
         { sku: "bpjs3m", name: "BPJS Kesehatan 3 Bulan", nominal: 3, basePrice: 135000, markup: 10000 }
-    ]
-    // Di dalam PPOB_PRODUCTS, setelah bpjs, tambahkan:
-ewallet: [
-    { sku: "dana10k", name: "Top Up DANA 10.000", nominal: 10000, basePrice: 10200, markup: 200, category: "ewallet", maxPerDay: 500000 },
-    { sku: "dana20k", name: "Top Up DANA 20.000", nominal: 20000, basePrice: 20400, markup: 400, category: "ewallet", maxPerDay: 500000 },
-    { sku: "dana50k", name: "Top Up DANA 50.000", nominal: 50000, basePrice: 51000, markup: 1000, category: "ewallet", maxPerDay: 500000 },
-    { sku: "dana100k", name: "Top Up DANA 100.000", nominal: 100000, basePrice: 102000, markup: 2000, category: "ewallet", maxPerDay: 500000 },
-    { sku: "ovo10k", name: "Top Up OVO 10.000", nominal: 10000, basePrice: 10200, markup: 200, category: "ewallet", maxPerDay: 500000 },
-    { sku: "ovo20k", name: "Top Up OVO 20.000", nominal: 20000, basePrice: 20400, markup: 400, category: "ewallet", maxPerDay: 500000 },
-    { sku: "ovo50k", name: "Top Up OVO 50.000", nominal: 50000, basePrice: 51000, markup: 1000, category: "ewallet", maxPerDay: 500000 },
-    { sku: "gopay10k", name: "Top Up GoPay 10.000", nominal: 10000, basePrice: 10200, markup: 200, category: "ewallet", maxPerDay: 500000 },
-    { sku: "gopay20k", name: "Top Up GoPay 20.000", nominal: 20000, basePrice: 20400, markup: 400, category: "ewallet", maxPerDay: 500000 },
-    { sku: "gopay50k", name: "Top Up GoPay 50.000", nominal: 50000, basePrice: 51000, markup: 1000, category: "ewallet", maxPerDay: 500000 }
+    ],
+    ewallet: [
+        { sku: "dana10k", name: "Top Up DANA 10.000", nominal: 10000, basePrice: 10200, markup: 200, category: "ewallet", maxPerDay: 500000 },
+        { sku: "dana20k", name: "Top Up DANA 20.000", nominal: 20000, basePrice: 20400, markup: 400, category: "ewallet", maxPerDay: 500000 },
+        { sku: "dana50k", name: "Top Up DANA 50.000", nominal: 50000, basePrice: 51000, markup: 1000, category: "ewallet", maxPerDay: 500000 },
+        { sku: "dana100k", name: "Top Up DANA 100.000", nominal: 100000, basePrice: 102000, markup: 2000, category: "ewallet", maxPerDay: 500000 },
+        { sku: "ovo10k", name: "Top Up OVO 10.000", nominal: 10000, basePrice: 10200, markup: 200, category: "ewallet", maxPerDay: 500000 },
+        { sku: "ovo20k", name: "Top Up OVO 20.000", nominal: 20000, basePrice: 20400, markup: 400, category: "ewallet", maxPerDay: 500000 },
+        { sku: "ovo50k", name: "Top Up OVO 50.000", nominal: 50000, basePrice: 51000, markup: 1000, category: "ewallet", maxPerDay: 500000 },
+        { sku: "gopay10k", name: "Top Up GoPay 10.000", nominal: 10000, basePrice: 10200, markup: 200, category: "ewallet", maxPerDay: 500000 },
+        { sku: "gopay20k", name: "Top Up GoPay 20.000", nominal: 20000, basePrice: 20400, markup: 400, category: "ewallet", maxPerDay: 500000 },
+        { sku: "gopay50k", name: "Top Up GoPay 50.000", nominal: 50000, basePrice: 51000, markup: 1000, category: "ewallet", maxPerDay: 500000 }
     ]
 };
 
 function getPPOBPrice(basePrice, markup) { return basePrice + markup; }
 function getProductIconPPOB(category) {
-    const icons = { pulsa: "📱", data: "📶", listrik: "⚡", game: "🎮", tv: "📺", bpjs: "🏥" };
+    const icons = { pulsa: "📱", data: "📶", listrik: "⚡", game: "🎮", tv: "📺", bpjs: "🏥", ewallet: "💳" };
     return icons[category] || "📦";
 }
 
