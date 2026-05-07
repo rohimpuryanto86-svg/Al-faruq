@@ -1075,7 +1075,229 @@ async function renderWalletPage() {
         else alert("Minimal Rp 10.000"); 
     };
  }
+ async function renderWithdrawPage() {
+    // Cek limit withdraw hari ini
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const { data: todayWithdraws } = await supabaseClient
+        .from('withdraw_requests')
+        .select('amount')
+        .eq('user_id', currentUser.id)
+        .eq('type', 'withdraw')
+        .gte('created_at', today.toISOString())
+        .eq('status', 'pending');
+    
+    let totalWithdrawToday = 0;
+    if (todayWithdraws && todayWithdraws.length > 0) {
+        totalWithdrawToday = todayWithdraws.reduce((sum, w) => sum + w.amount, 0);
+    }
+    
+    const MAX_WITHDRAW_DAY = 500000;
+    const remainingLimit = MAX_WITHDRAW_DAY - totalWithdrawToday;
+    const isLimitReached = remainingLimit <= 0;
+    
+    let html = `
+        <div class="tabs">
+            <div class="tab" id="backToWallet">Kembali ke Wallet</div>
+            <div class="tab active">💰 Withdraw (Cairkan Saldo)</div>
+        </div>
+        
+        <div class="card">
+            <h2>Form Withdraw</h2>
+            <div class="alert-info"><strong>💰 Saldo Anda:</strong> ${formatRupiah(currentUser.walletBalance)}</div>
+            
+            <div class="alert-warning" style="margin-bottom:15px;">
+                ⚠️ <strong>Aturan Withdraw:</strong><br>
+                • Minimal withdraw: <strong>Rp 10.000</strong><br>
+                • Maksimal per hari: <strong>${formatRupiah(MAX_WITHDRAW_DAY)}</strong><br>
+                • Sisa limit hari ini: <strong>${formatRupiah(Math.max(0, remainingLimit))}</strong>
+            </div>
+            
+            ${isLimitReached ? '<div class="alert-danger">⚠️ Limit withdraw hari ini sudah mencapai maksimal! Silakan coba besok.</div>' : ''}
+            
+            <form id="withdrawForm">
+                <div class="form-group">
+                    <label>Jumlah Withdraw</label>
+                    <input type="number" id="withdrawAmount" min="10000" step="10000" ${isLimitReached ? 'disabled' : ''} required>
+                </div>
+                
+                <div class="form-group">
+                    <label>Metode Pencairan</label>
+                    <select id="withdrawMethod" ${isLimitReached ? 'disabled' : ''} required>
+                        <option value="">-- Pilih Metode --</option>
+                        <optgroup label="💳 E-Wallet (Fee 2%)">
+                            <option value="dana">💚 DANA</option>
+                            <option value="ovo">💜 OVO</option>
+                            <option value="gopay">💚 GoPay</option>
+                            <option value="linkaja">🔵 LinkAja</option>
+                        </optgroup>
+                        <optgroup label="🏦 Transfer Bank (Fee Rp 5.000)">
+                            <option value="bca">🏦 BCA</option>
+                            <option value="bri">🏦 BRI</option>
+                            <option value="mandiri">🏦 Mandiri</option>
+                            <option value="bni">🏦 BNI</option>
+                            <option value="other">🏦 Bank Lainnya</option>
+                        </optgroup>
+                    </select>
+                </div>
+                
+                <div class="form-group" id="accountNumberGroup" style="display:none;">
+                    <label>Nomor Rekening / ID E-Wallet</label>
+                    <input type="text" id="accountNumber" placeholder="Contoh: 081234567890">
+                </div>
+                
+                <div class="form-group" id="accountNameGroup" style="display:none;">
+                    <label>Nama Pemilik Rekening</label>
+                    <input type="text" id="accountName" placeholder="Contoh: Ahmad Fauzi">
+                </div>
+                
+                <button type="submit" class="btn-success" id="submitWithdrawBtn" ${isLimitReached ? 'disabled' : ''}>Kirim Request Withdraw</button>
+                <button type="button" class="btn-back" id="cancelBtn">Batal</button>
+            </form>
+        </div>
+        
+        <div class="card">
+            <h3>📋 Riwayat Withdraw</h3>
+            <div id="withdrawHistory">Memuat...</div>
+        </div>
+    `;
+    
+    document.getElementById("appRoot").innerHTML = html;
+    
+    document.getElementById("backToWallet").onclick = () => renderWalletPage();
+    document.getElementById("cancelBtn").onclick = () => renderWalletPage();
+    
+    if (isLimitReached) return;
+    
+    // Tampilkan form account sesuai metode
+    document.getElementById("withdrawMethod").onchange = function() {
+        let method = this.value;
+        let accountGroup = document.getElementById("accountNumberGroup");
+        let nameGroup = document.getElementById("accountNameGroup");
+        
+        if (method && method !== "") {
+            accountGroup.style.display = "block";
+            nameGroup.style.display = "block";
+        } else {
+            accountGroup.style.display = "none";
+            nameGroup.style.display = "none";
+        }
+    };
+    
+    // Load riwayat withdraw
+    await loadWithdrawHistory();
+    
+    // SUBMIT WITHDRAW
+    document.getElementById("withdrawForm").onsubmit = async (e) => {
+        e.preventDefault();
+        console.log("Form withdraw disubmit!"); // Cek apakah masuk sini
+        
+        let amount = parseInt(document.getElementById("withdrawAmount").value);
+        let method = document.getElementById("withdrawMethod").value;
+        let accountNumber = document.getElementById("accountNumber").value;
+        let accountName = document.getElementById("accountName").value;
+        
+        if (!amount || amount < 10000) {
+            alert("Minimal withdraw Rp 10.000");
+            return;
+        }
+        
+        if (amount > currentUser.walletBalance) {
+            alert(`Saldo tidak cukup! Saldo: ${formatRupiah(currentUser.walletBalance)}`);
+            return;
+        }
+        
+        if (totalWithdrawToday + amount > MAX_WITHDRAW_DAY) {
+            alert(`⚠️ Melebihi limit harian! Sisa limit: ${formatRupiah(remainingLimit)}`);
+            return;
+        }
+        
+        if (!method) {
+            alert("Pilih metode pencairan!");
+            return;
+        }
+        
+        if (!accountNumber) {
+            alert("Masukkan nomor rekening / ID E-Wallet!");
+            return;
+        }
+        
+        // Hitung fee
+        let fee = 0;
+        let receivedAmount = amount;
+        let isEwallet = (method === "dana" || method === "ovo" || method === "gopay" || method === "linkaja");
+        
+        if (isEwallet) {
+            fee = Math.floor(amount * 0.02);
+            receivedAmount = amount - fee;
+        } else {
+            fee = 5000;
+            receivedAmount = amount - fee;
+        }
+        
+        if (!confirm(`Konfirmasi Withdraw:\n\nJumlah: ${formatRupiah(amount)}\nMetode: ${method.toUpperCase()}\nFee: ${formatRupiah(fee)}\nDiterima: ${formatRupiah(receivedAmount)}\n\nLanjutkan?`)) return;
+        
+        let btn = document.getElementById("submitWithdrawBtn");
+        let originalText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = "Memproses...";
+        
+        const { error } = await supabaseClient.from('withdraw_requests').insert({
+            user_id: currentUser.id,
+            amount: amount,
+            type: "withdraw",
+            bank_name: method,
+            bank_account: accountNumber,
+            notes: `Nama: ${accountName}, Fee: ${fee}, Diterima: ${receivedAmount}`,
+            status: "pending"
+        });
+        
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+        
+        if (error) {
+            console.error("Error:", error);
+            alert("❌ Gagal: " + error.message);
+        } else {
+            alert("✅ Request withdraw terkirim! Menunggu konfirmasi admin.");
+            renderWalletPage();
+        }
+    };
+}
 
+async function loadWithdrawHistory() {
+    const { data, error } = await supabaseClient
+        .from('withdraw_requests')
+        .select('*')
+        .eq('user_id', currentUser.id)
+        .eq('type', 'withdraw')
+        .order('created_at', { ascending: false });
+    
+    const container = document.getElementById("withdrawHistory");
+    if (!container) return;
+    
+    if (!data || data.length === 0) {
+        container.innerHTML = '<div class="alert-info">Belum ada riwayat withdraw.</div>';
+        return;
+    }
+    
+    container.innerHTML = `
+        <table class="report-table">
+            <thead><tr style="background:#1e6b3b; color:white;"><th>Tanggal</th><th>Jumlah</th><th>Metode</th><th>Status</th></tr></thead>
+            <tbody>
+                ${data.map(w => `
+                    <tr>
+                        <td>${new Date(w.created_at).toLocaleDateString('id-ID')}</td>
+                        <td>${formatRupiah(w.amount)}</td>
+                        <td>${w.bank_name?.toUpperCase() || '-'}</td>
+                        <td><span style="background:${w.status === 'approved' ? '#27ae60' : w.status === 'rejected' ? '#e74c3c' : '#f39c12'}; color:white; padding:3px 8px; border-radius:20px;">${w.status === 'approved' ? 'Disetujui' : w.status === 'rejected' ? 'Ditolak' : 'Pending'}</span></td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>
+    `;
+}
     // ======================== TRANSFER KE SESAMA USER ========================
 
 async function renderTransferPage() {
