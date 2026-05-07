@@ -376,6 +376,19 @@ const PPOB_PRODUCTS = {
         { sku: "bpjs1m", name: "BPJS Kesehatan 1 Bulan", nominal: 1, basePrice: 45000, markup: 5000 },
         { sku: "bpjs3m", name: "BPJS Kesehatan 3 Bulan", nominal: 3, basePrice: 135000, markup: 10000 }
     ]
+    // Di dalam PPOB_PRODUCTS, setelah bpjs, tambahkan:
+ewallet: [
+    { sku: "dana10k", name: "Top Up DANA 10.000", nominal: 10000, basePrice: 10200, markup: 200, category: "ewallet", maxPerDay: 500000 },
+    { sku: "dana20k", name: "Top Up DANA 20.000", nominal: 20000, basePrice: 20400, markup: 400, category: "ewallet", maxPerDay: 500000 },
+    { sku: "dana50k", name: "Top Up DANA 50.000", nominal: 50000, basePrice: 51000, markup: 1000, category: "ewallet", maxPerDay: 500000 },
+    { sku: "dana100k", name: "Top Up DANA 100.000", nominal: 100000, basePrice: 102000, markup: 2000, category: "ewallet", maxPerDay: 500000 },
+    { sku: "ovo10k", name: "Top Up OVO 10.000", nominal: 10000, basePrice: 10200, markup: 200, category: "ewallet", maxPerDay: 500000 },
+    { sku: "ovo20k", name: "Top Up OVO 20.000", nominal: 20000, basePrice: 20400, markup: 400, category: "ewallet", maxPerDay: 500000 },
+    { sku: "ovo50k", name: "Top Up OVO 50.000", nominal: 50000, basePrice: 51000, markup: 1000, category: "ewallet", maxPerDay: 500000 },
+    { sku: "gopay10k", name: "Top Up GoPay 10.000", nominal: 10000, basePrice: 10200, markup: 200, category: "ewallet", maxPerDay: 500000 },
+    { sku: "gopay20k", name: "Top Up GoPay 20.000", nominal: 20000, basePrice: 20400, markup: 400, category: "ewallet", maxPerDay: 500000 },
+    { sku: "gopay50k", name: "Top Up GoPay 50.000", nominal: 50000, basePrice: 51000, markup: 1000, category: "ewallet", maxPerDay: 500000 }
+    ]
 };
 
 function getPPOBPrice(basePrice, markup) { return basePrice + markup; }
@@ -511,6 +524,7 @@ function renderLandingPage() {
         <div class="card"><h2 style="text-align:center;">Program Reseller</h2>
         <table class="commission-table"><thead><tr><th>Level</th><th>Referral</th><th>Komisi</th></tr></thead>
         <tbody><tr><td>BASIC</td><td>0-49</td><td>20%</td></tr><tr><td>BRONZE</td><td>50-99</td><td>25%</td></tr><tr><td>SILVER</td><td>100-499</td><td>30%</td></tr><tr><td>GOLD</td><td>500-999</td><td>35%</td></tr><tr><td>PLATINUM</td><td>1000-4999</td><td>40%</td></tr><tr><td>DIAMOND</td><td>5000+</td><td>50%</td></tr></tbody></table></div>
+        <div class="alert-warning" style="margin-top:15px;"> ⚠️ <strong>Penting:</strong> Komisi HANYA didapatkan dari pembelian KURSUS (bukan dari top up wallet, PPOB, atau transfer).</div>
         <div class="card" style="text-align:center;"><h2>Early Bird ${settings.earlyBirdDiscount}%</h2>
         <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:20px;">
         <div class="price-card"><h3>Pilih 1 Kursus</h3><div class="price-old">Rp 200.000</div><div class="price-new">${formatRupiah(getDiscountedPrice(200000))}</div><button onclick="window.location.hash='#register'">Pilih</button></div>
@@ -627,6 +641,7 @@ async function renderUserDashboard() {
         <div class="tab" id="progressTab">Progress</div><div class="tab" id="walletTab">Wallet</div>
         <div class="tab" id="ppobTab">PPOB</div><div class="tab" id="certificateTab">Sertifikat</div>
         <div class="tab" id="reportTab">Rapor & Badge</div><div class="tab" id="resellerTab">Reseller</div>
+        <div class="tab" id="guideTab">📘 Panduan</div>
         <div class="tab" id="logoutTab">Logout</div></div>
         <div class="card"><h2>Selamat Datang, ${escapeHtml(currentUser.name)}!</h2>
         <p>WhatsApp: ${currentUser.phone || settings.defaultWhatsappNumber}</p>
@@ -636,6 +651,7 @@ async function renderUserDashboard() {
         <div class="stat-card"><div class="stat-number">${currentUser.purchasedCourses?.length || 0}</div><div>Kursus Dimiliki</div></div>
         <div class="stat-card"><div class="stat-number">${currentUser.isBundle ? 'Ya' : 'Tidak'}</div><div>Bundle</div></div></div>
         <div class="progress-bar"><div class="progress-fill" style="width:${overall.percent}%;"></div></div>
+        <div class="alert-info" style="margin-top:10px;"> 📌 Komisi 20-50% akan masuk ke wallet Anda JIKA referral membeli KURSUS.</div>
         <p style="text-align:center;">Progress Belajar: ${Math.round(overall.percent)}%</p></div>`;
     if (currentUser.canRefer) html += `<div class="card" style="background:#d4edda;"><h3>Program Reseller - AKTIF!</h3><p>Kode referral Anda sudah aktif!</p><button onclick="copyReferral()" class="btn-copy">Salin Kode</button></div>`;
     else html += `<div class="card" style="background:#fff3cd;"><h3>Program Reseller - Belum Aktif</h3><p>Selesaikan 1 kursus penuh dengan nilai minimal 7.</p></div>`;
@@ -646,6 +662,7 @@ async function renderUserDashboard() {
     document.getElementById("ppobTab").onclick = () => renderPPOBPage();
     document.getElementById("certificateTab").onclick = () => renderCertificatePage();
     document.getElementById("reportTab").onclick = () => renderReportPage();
+    document.getElementById("guideTab").onclick = () => renderGuidePage();
     document.getElementById("resellerTab").onclick = () => renderResellerInfo();
     document.getElementById("logoutTab").onclick = async () => { await supabaseClient.auth.signOut(); currentUser = null; window.location.hash = "#landing"; };
 }
@@ -825,6 +842,7 @@ async function renderPPOBPage() {
         <div class="ppob-category-tab active" data-cat="pulsa">📱 Pulsa</div><div class="ppob-category-tab" data-cat="data">📶 Paket Data</div>
         <div class="ppob-category-tab" data-cat="listrik">⚡ Token Listrik</div><div class="ppob-category-tab" data-cat="game">🎮 Voucher Game</div>
         <div class="ppob-category-tab" data-cat="tv">📺 TV Berlangganan</div><div class="ppob-category-tab" data-cat="bpjs">🏥 BPJS</div></div>
+        <div class="ppob-category-tab" data-cat="ewallet">💳 Top Up E-Wallet</div>
         <div id="ppobProductsContainer"><div class="alert-info">Loading produk...</div></div></div>
         <div class="card" id="purchaseFormContainer" style="display:none;"><h3 id="selectedProductName"></h3>
         <form id="ppobPurchaseForm"><div class="form-group"><label>Nomor Tujuan</label><input type="text" id="customerId" required placeholder="Contoh: 08123456789"></div>
@@ -843,23 +861,108 @@ async function renderPPOBPage() {
 async function loadPPOBProducts(category) {
     const container = document.getElementById("ppobProductsContainer");
     if (!container) return;
+    
+    // Cek limit harian untuk e-wallet
+    let todayEwalletTotal = 0;
+    let ewalletLimit = 500000; // Rp 500.000 per hari
+    
+    if (category === "ewallet") {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        const { data: todayTransactions } = await supabaseClient
+            .from('ppob_transactions')
+            .select('amount')
+            .eq('user_id', currentUser.id)
+            .eq('product_sku', 'ewallet')
+            .gte('created_at', today.toISOString());
+        
+        if (todayTransactions && todayTransactions.length > 0) {
+            todayEwalletTotal = todayTransactions.reduce((sum, t) => sum + t.amount, 0);
+        }
+    }
+    
     const products = PPOB_PRODUCTS[category] || [];
-    if (products.length === 0) { container.innerHTML = '<div class="alert-warning">Belum ada produk</div>'; return; }
-    container.innerHTML = `<div class="course-grid">${products.map(product => { const price = getPPOBPrice(product.basePrice, product.markup);
-        return `<div class="course-card ppob-product-card"><div class="course-icon">${getProductIconPPOB(category)}</div><div class="course-title">${product.name}</div><div class="course-price">${formatRupiah(price)}</div>
-        <button class="btn-primary select-ppob-product" data-sku="${product.sku}" data-name="${product.name}" data-price="${price}">Beli</button></div>`; }).join('')}</div>`;
-    document.querySelectorAll(".select-ppob-product").forEach(btn => { btn.onclick = () => { const sku = btn.getAttribute("data-sku"); const name = btn.getAttribute("data-name"); const price = parseInt(btn.getAttribute("data-price")); selectedPPOBProduct = { sku, name, price };
-        document.getElementById("selectedProductName").innerHTML = `Beli: ${name} - ${formatRupiah(price)}`; document.getElementById("productPrice").value = formatRupiah(price);
-        document.getElementById("purchaseFormContainer").style.display = "block"; document.getElementById("customerId").focus(); }; });
-}
-async function renderPPOBHistory() {
-    let transactions = await getPPOBHistory();
-    let html = `<div class="tabs"><div class="tab" id="backToPPOB">Kembali ke PPOB</div><div class="tab active">Riwayat Transaksi PPOB</div></div>
-        <div class="card"><h2>Riwayat Pembelian</h2>${!transactions || transactions.length === 0 ? '<div class="alert-info">Belum ada transaksi PPOB</div>' :
-        `<table class="report-table"><thead><tr><th>Tanggal</th><th>Produk</th><th>Nomor Tujuan</th><th>Harga</th><th>Status</th></tr></thead>
-        <tbody>${transactions.map(t => `<tr><td>${new Date(t.created_at).toLocaleDateString('id-ID')}</td><td>${t.product_name}</td><td>${t.customer_id}</td><td>${formatRupiah(t.amount)}</td><td><span style="background:#27ae60; color:white; padding:3px 8px; border-radius:20px;">${t.status}</span></td></tr>`).join('')}</tbody></table>`}</div>`;
-    document.getElementById("appRoot").innerHTML = html;
-    document.getElementById("backToPPOB").onclick = () => renderPPOBPage();
+    if (products.length === 0) {
+        container.innerHTML = '<div class="alert-warning">Belum ada produk untuk kategori ini</div>';
+        return;
+    }
+    
+    let productsHtml = `<div class="course-grid">`;
+    
+    for (const product of products) {
+        const price = getPPOBPrice(product.basePrice, product.markup);
+        let isDisabled = false;
+        let disabledReason = "";
+        
+        if (category === "ewallet") {
+            const remainingLimit = ewalletLimit - todayEwalletTotal;
+            if (remainingLimit < price) {
+                isDisabled = true;
+                disabledReason = `Sisa limit hari ini ${formatRupiah(remainingLimit)}`;
+            }
+        }
+        
+        productsHtml += `
+            <div class="course-card ppob-product-card">
+                <div class="course-icon">${getProductIconPPOB(category)}</div>
+                <div class="course-title">${product.name}</div>
+                <div class="course-price">${formatRupiah(price)}</div>
+                ${category === "ewallet" ? `<div class="alert-info" style="font-size:0.7rem;">💰 Sisa limit harian: ${formatRupiah(ewalletLimit - todayEwalletTotal)}</div>` : ''}
+                ${isDisabled ? `<div class="alert-warning" style="font-size:0.7rem;">⚠️ ${disabledReason}</div>` : ''}
+                <button class="btn-primary select-ppob-product" 
+                        data-sku="${product.sku}"
+                        data-name="${product.name}"
+                        data-price="${price}"
+                        data-category="${category}"
+                        ${isDisabled ? 'disabled' : ''}>
+                    ${isDisabled ? 'Limit Habis' : 'Beli'}
+                </button>
+            </div>
+        `;
+    }
+    
+    productsHtml += `</div>`;
+    container.innerHTML = productsHtml;
+// ======================== EVENT LISTENER UNTUK TOMBOL BELI PPOB ========================
+document.querySelectorAll(".select-ppob-product").forEach(btn => {
+    btn.onclick = async () => {
+        const sku = btn.getAttribute("data-sku");
+        const name = btn.getAttribute("data-name");
+        const price = parseInt(btn.getAttribute("data-price"));
+        const category = btn.getAttribute("data-category");
+
+        // CEK LIMIT UNTUK E-WALLET
+        if (category === "ewallet") {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            const { data: todayTransactions } = await supabaseClient
+                .from('ppob_transactions')
+                .select('amount')
+                .eq('user_id', currentUser.id)
+                .eq('product_sku', 'ewallet')
+                .gte('created_at', today.toISOString());
+            
+            let todayTotal = 0;
+            if (todayTransactions && todayTransactions.length > 0) {
+                todayTotal = todayTransactions.reduce((sum, t) => sum + t.amount, 0);
+            }
+            
+            if (todayTotal + price > 500000) {
+                alert(`⚠️ Melebihi limit harian Top Up E-Wallet (Rp 500.000/hari)!\nSisa limit hari ini: ${formatRupiah(500000 - todayTotal)}`);
+                return;
+            }
+        }
+        
+        // SIMPAN PRODUK YANG DIPILIH
+        selectedPPOBProduct = { sku, name, price, category };
+        document.getElementById("selectedProductName").innerHTML = `Beli: ${name} - ${formatRupiah(price)}`;
+        document.getElementById("productPrice").value = formatRupiah(price);
+        document.getElementById("purchaseFormContainer").style.display = "block";
+        document.getElementById("customerId").focus();
+    };
+});
 }
 
 async function renderCertificatePage() {
@@ -935,6 +1038,376 @@ function toggleDarkMode() {
     let hash = window.location.hash.slice(1);
     if (hash === "dashboard" && currentUser) renderUserDashboard();
     else if (hash === "landing") renderLandingPage();
+}
+async function renderWalletPage() {
+    let html = `
+        <div class="tabs">
+            <div class="tab" id="backToDash">Kembali</div>
+            <div class="tab active">Wallet</div>
+            <div class="tab" id="topUpTab">Top Up</div>
+            <div class="tab" id="transferTab">🔄 Transfer</div>
+            <div class="tab" id="withdrawTab">💰 Withdraw</div>
+            <div class="tab" id="ppobTabWallet">PPOB</div>
+        </div>
+        <div class="card" style="text-align:center;">
+            <h2>Saldo Wallet</h2>
+            <div style="font-size:2rem; color:#27ae60;">${formatRupiah(currentUser.walletBalance)}</div>
+            <div class="btn-group" style="margin-top:20px;">
+                <button id="topUp10Btn" class="btn-success">+ Rp 10.000</button>
+                <button id="topUp50Btn" class="btn-success">+ Rp 50.000</button>
+                <button id="topUp100Btn" class="btn-success">+ Rp 100.000</button>
+            </div>
+            <button id="topUpCustomBtn" class="btn-edit" style="margin-top:10px;">Top Up Custom</button>
+        </div>
+    `;
+    document.getElementById("appRoot").innerHTML = html;
+    
+    document.getElementById("backToDash").onclick = () => renderUserDashboard();
+    document.getElementById("topUpTab").onclick = () => renderTopUpPage();
+    document.getElementById("transferTab").onclick = () => renderTransferPage();
+    document.getElementById("withdrawTab").onclick = () => renderWithdrawPage();
+    document.getElementById("ppobTabWallet").onclick = () => renderPPOBPage();
+    document.getElementById("topUp10Btn").onclick = () => topUpWallet(10000);
+    document.getElementById("topUp50Btn").onclick = () => topUpWallet(50000);
+    document.getElementById("topUp100Btn").onclick = () => topUpWallet(100000);
+    document.getElementById("topUpCustomBtn").onclick = () => { 
+        let amount = prompt("Masukkan jumlah top up (min Rp 10.000):", "50000"); 
+        if (amount && parseInt(amount) >= 10000) topUpWallet(parseInt(amount)); 
+        else alert("Minimal Rp 10.000"); 
+    };
+ }
+
+    // ======================== TRANSFER KE SESAMA USER ========================
+
+async function renderTransferPage() {
+    let todayTotal = await getTodayTransferTotal();
+    let dailyLimit = 1000000; // Rp 1.000.000 per hari
+    let remainingLimit = dailyLimit - todayTotal;
+    
+    let html = `
+        <div class="tabs">
+            <div class="tab" id="backToWallet">Kembali ke Wallet</div>
+            <div class="tab active">🔄 Transfer Saldo ke Sesama AOC</div>
+        </div>
+        
+        <div class="card">
+            <h2>Transfer Saldo</h2>
+            <div class="alert-info" style="margin-bottom:15px;">
+                <strong>💰 Saldo Anda:</strong> ${formatRupiah(currentUser.walletBalance)}
+            </div>
+            <div class="alert-warning" style="margin-bottom:15px;">
+                ⚠️ <strong>Aturan Transfer:</strong><br>
+                • Minimal transfer: <strong>Rp 5.000</strong><br>
+                • Maksimal per hari: <strong>${formatRupiah(dailyLimit)}</strong><br>
+                • <strong>Sisa limit hari ini: ${formatRupiah(remainingLimit)}</strong><br>
+                • Transfer tidak dapat dibatalkan
+            </div>
+            
+            <form id="transferForm">
+                <div class="form-group">
+                    <label>Email atau Nama Penerima</label>
+                    <input type="text" id="searchUser" placeholder="Cari berdasarkan email atau nama" required>
+                    <div id="searchResult" style="margin-top:5px;"></div>
+                </div>
+                
+                <div class="form-group">
+                    <label>Jumlah Transfer</label>
+                    <input type="number" id="transferAmount" min="5000" step="5000" required>
+                </div>
+                
+                <div class="form-group">
+                    <label>Catatan (Opsional)</label>
+                    <textarea id="transferNote" rows="2" placeholder="Contoh: Untuk pembayaran kursus"></textarea>
+                </div>
+                
+                <button type="submit" class="btn-success" id="transferBtn" disabled>Kirim Transfer</button>
+                <button type="button" class="btn-back" id="cancelBtn">Batal</button>
+            </form>
+        </div>
+        
+        <div class="card">
+            <h3>📋 Riwayat Transfer</h3>
+            <div id="transferHistory"></div>
+        </div>
+    `;
+    
+    document.getElementById("appRoot").innerHTML = html;
+    
+    document.getElementById("backToWallet").onclick = () => renderWalletPage();
+    document.getElementById("cancelBtn").onclick = () => renderWalletPage();
+    
+    let selectedUser = null;
+    let searchInput = document.getElementById("searchUser");
+    let searchResult = document.getElementById("searchResult");
+    let transferAmount = document.getElementById("transferAmount");
+    let transferBtn = document.getElementById("transferBtn");
+    
+    // Cari user saat mengetik
+    let typingTimer;
+    searchInput.oninput = function() {
+        clearTimeout(typingTimer);
+        let query = this.value.trim();
+        if (query.length < 2) {
+            searchResult.innerHTML = "";
+            selectedUser = null;
+            transferBtn.disabled = true;
+            return;
+        }
+        
+        searchResult.innerHTML = '<span style="color:#f39c12;">🔍 Mencari...</span>';
+        
+        typingTimer = setTimeout(async () => {
+            const { data, error } = await supabaseClient
+                .from('profiles')
+                .select('user_id, full_name, email')
+                .or(`email.ilike.%${query}%,full_name.ilike.%${query}%`)
+                .neq('user_id', currentUser.id)
+                .limit(5);
+            
+            if (error || !data || data.length === 0) {
+                searchResult.innerHTML = '<span style="color:#e74c3c;">❌ User tidak ditemukan</span>';
+                selectedUser = null;
+                transferBtn.disabled = true;
+            } else {
+                let html = '<div style="border:1px solid #ddd; border-radius:8px; background:var(--bg-card);">';
+                data.forEach(user => {
+                    html += `<div class="user-result" data-id="${user.user_id}" data-name="${user.full_name}" data-email="${user.email}" style="padding:10px; border-bottom:1px solid #eee; cursor:pointer;">
+                        <strong>${user.full_name}</strong><br><small>${user.email}</small>
+                    </div>`;
+                });
+                html += '</div>';
+                searchResult.innerHTML = html;
+                
+                document.querySelectorAll(".user-result").forEach(el => {
+                    el.onclick = () => {
+                        selectedUser = {
+                            user_id: el.getAttribute("data-id"),
+                            full_name: el.getAttribute("data-name"),
+                            email: el.getAttribute("data-email")
+                        };
+                        searchInput.value = `${selectedUser.full_name} (${selectedUser.email})`;
+                        searchResult.innerHTML = `<span style="color:#27ae60;">✅ Penerima: ${selectedUser.full_name}</span>`;
+                        transferBtn.disabled = false;
+                    };
+                });
+            }
+        }, 500);
+    };
+    
+    // Validasi jumlah transfer
+    transferAmount.oninput = function() {
+        let amount = parseInt(this.value);
+        if (!selectedUser) return;
+        
+        if (isNaN(amount) || amount < 5000) {
+            transferBtn.disabled = true;
+        } else if (amount > currentUser.walletBalance) {
+            transferBtn.disabled = true;
+        } else if (todayTotal + amount > dailyLimit) {
+            transferBtn.disabled = true;
+        } else {
+            transferBtn.disabled = false;
+        }
+    };
+    
+    // Load riwayat transfer
+    await loadTransferHistory();
+    
+    // Submit transfer
+    document.getElementById("transferForm").onsubmit = async (e) => {
+        e.preventDefault();
+        
+        let amount = parseInt(transferAmount.value);
+        let note = document.getElementById("transferNote").value;
+        
+        if (!selectedUser) {
+            alert("Pilih penerima terlebih dahulu!");
+            return;
+        }
+        
+        if (!amount || amount < 5000) {
+            alert("Minimal transfer Rp 5.000");
+            return;
+        }
+        
+        if (amount > currentUser.walletBalance) {
+            alert(`Saldo tidak cukup! Saldo: ${formatRupiah(currentUser.walletBalance)}`);
+            return;
+        }
+        
+        let todayTotalCheck = await getTodayTransferTotal();
+        if (todayTotalCheck + amount > dailyLimit) {
+            alert(`⚠️ Melebihi limit transfer harian ${formatRupiah(dailyLimit)}!`);
+            return;
+        }
+        
+        if (!confirm(`Konfirmasi transfer:\n\nKepada: ${selectedUser.full_name}\nJumlah: ${formatRupiah(amount)}\nCatatan: ${note || '-'}\n\nLanjutkan?`)) return;
+        
+        let btn = document.getElementById("transferBtn");
+        let originalText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = "Memproses...";
+        
+        // Kurangi saldo pengirim
+        let newSenderBalance = currentUser.walletBalance - amount;
+        let { error: senderError } = await supabaseClient
+            .from('profiles')
+            .update({ wallet_balance: newSenderBalance })
+            .eq('user_id', currentUser.id);
+        
+        if (senderError) {
+            alert("❌ Gagal: " + senderError.message);
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+            return;
+        }
+        
+        // Tambah saldo penerima
+        let { data: receiver } = await supabaseClient
+            .from('profiles')
+            .select('wallet_balance')
+            .eq('user_id', selectedUser.user_id)
+            .single();
+        
+        let newReceiverBalance = (receiver?.wallet_balance || 0) + amount;
+        let { error: receiverError } = await supabaseClient
+            .from('profiles')
+            .update({ wallet_balance: newReceiverBalance })
+            .eq('user_id', selectedUser.user_id);
+        
+        if (receiverError) {
+            // Rollback
+            await supabaseClient.from('profiles').update({ wallet_balance: currentUser.walletBalance }).eq('user_id', currentUser.id);
+            alert("❌ Gagal: " + receiverError.message);
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+            return;
+        }
+        
+        // Catat transaksi
+        await supabaseClient.from('transfer_logs').insert({
+            from_user_id: currentUser.id,
+            from_user_name: currentUser.name,
+            to_user_id: selectedUser.user_id,
+            to_user_name: selectedUser.full_name,
+            amount: amount,
+            note: note,
+            status: 'success',
+            created_at: new Date().toISOString()
+        });
+        
+        currentUser.walletBalance = newSenderBalance;
+        alert(`✅ Transfer ${formatRupiah(amount)} berhasil dikirim ke ${selectedUser.full_name}!`);
+        renderTransferPage();
+    };
+}
+
+async function getTodayTransferTotal() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const { data } = await supabaseClient
+        .from('transfer_logs')
+        .select('amount')
+        .eq('from_user_id', currentUser.id)
+        .gte('created_at', today.toISOString());
+    return (data || []).reduce((sum, t) => sum + t.amount, 0);
+}
+
+async function loadTransferHistory() {
+    const { data } = await supabaseClient
+        .from('transfer_logs')
+        .select('*')
+        .or(`from_user_id.eq.${currentUser.id},to_user_id.eq.${currentUser.id}`)
+        .order('created_at', { ascending: false })
+        .limit(20);
+    
+    const container = document.getElementById("transferHistory");
+    if (!container) return;
+    
+    if (!data || data.length === 0) {
+        container.innerHTML = '<div class="alert-info">Belum ada riwayat transfer.</div>';
+        return;
+    }
+    
+    container.innerHTML = `
+        <table class="report-table">
+            <thead><tr style="background:#1e6b3b; color:white;"><th>Tanggal</th><th>Tipe</th><th>Nama</th><th>Jumlah</th><th>Catatan</th></tr></thead>
+            <tbody>
+                ${data.map(t => {
+                    let isOutgoing = t.from_user_id === currentUser.id;
+                    return `<tr>
+                        <td>${new Date(t.created_at).toLocaleDateString('id-ID')}</td>
+                        <td style="color:${isOutgoing ? '#e74c3c' : '#27ae60'}">${isOutgoing ? '📤 Kirim' : '📥 Terima'}</td>
+                        <td>${isOutgoing ? t.to_user_name : t.from_user_name}</td>
+                        <td style="color:${isOutgoing ? '#e74c3c' : '#27ae60'}">${isOutgoing ? '-' : '+'}${formatRupiah(t.amount)}</td>
+                        <td>${t.note || '-'}</td>
+                    </tr>`;
+                }).join('')}
+            </tbody>
+        </table>
+    `;
+}
+function renderGuidePage() {
+    let html = `
+        <div class="tabs">
+            <div class="tab" id="backToDash">Kembali</div>
+            <div class="tab active">📘 Panduan Pengguna</div>
+        </div>
+        
+        <div class="card">
+            <h2>📚 1. Cara Beli Kursus</h2>
+            <ol><li>Pastikan saldo wallet mencukupi</li><li>Klik menu "Beli Kursus"</li><li>Pilih kursus → klik "Beli"</li><li>Kursus langsung bisa diakses</li></ol>
+        </div>
+        
+        <div class="card">
+            <h2>💰 2. Cara Top Up Wallet</h2>
+            <ol><li>Klik menu "Wallet" → "Top Up"</li><li>Pilih nominal atau custom</li><li>Transfer ke rekening BRI a.n Rohim Puryanto</li><li>Upload bukti transfer</li><li>Tunggu konfirmasi admin</li></ol>
+            <div class="alert-warning">⚠️ Wajib tulis pesan: TOPUP AOC - [Nama Anda]</div>
+        </div>
+        
+        <div class="card">
+            <h2>💸 3. Cara Withdraw (Cairkan Saldo)</h2>
+            <ol><li>Klik menu "Wallet" → "Withdraw"</li><li>Masukkan jumlah (min Rp 10.000)</li><li>Pilih metode (E-Wallet/Bank)</li><li>Masukkan nomor rekening/ID E-Wallet</li><li>Kirim request → tunggu admin proses</li></ol>
+            <div class="alert-info">💰 Fee E-Wallet: 2% | Bank: Rp 5.000</div>
+        </div>
+        
+        <div class="card">
+            <h2>🔄 4. Transfer ke Sesama AOC</h2>
+            <ol><li>Klik menu "Wallet" → "Transfer"</li><li>Cari user tujuan (email/nama)</li><li>Masukkan jumlah transfer (min Rp 5.000)</li><li>Transfer tidak dapat dibatalkan</li></ol>
+        </div>
+        
+        <div class="card">
+            <h2>📱 5. Cara Beli Pulsa/Token/PPOB</h2>
+            <ol><li>Klik menu "PPOB"</li><li>Pilih kategori (Pulsa, Listrik, E-Wallet, dll)</li><li>Masukkan nomor tujuan</li><li>Konfirmasi → saldo otomatis terpotong</li></ol>
+            <div class="alert-warning">⚠️ Transaksi PPOB tidak dapat dibatalkan!</div>
+        </div>
+        
+        <div class="card">
+            <h2>🤝 6. Program Reseller & Komisi</h2>
+            <div class="alert-success">🎯 Syarat: Selesaikan 1 kursus penuh dengan nilai minimal 70</div>
+            <div class="alert-warning">⚠️ Komisi HANYA dari pembelian KURSUS (bukan dari top up/PPOB/transfer)</div>
+            <table class="commission-table"><thead><tr><th>Level</th><th>Referral</th><th>Komisi</th></tr></thead>
+            <tbody><tr><td>BASIC</td><td>0-49</td><td>20%</td></tr><tr><td>BRONZE</td><td>50-99</td><td>25%</td></tr>
+            <tr><td>SILVER</td><td>100-499</td><td>30%</td></tr><tr><td>GOLD</td><td>500-999</td><td>35%</td></tr>
+            <tr><td>PLATINUM</td><td>1000-4999</td><td>40%</td></tr><tr><td>DIAMOND</td><td>5000+</td><td>50%</td></tr></tbody></table>
+        </div>
+        
+        <div class="card">
+            <h2>❓ FAQ</h2>
+            <div><strong>❓ Berapa lama proses top up/withdraw?</strong><br>Maksimal 1x24 jam kerja.</div><br>
+            <div><strong>❓ Apakah bisa refund jika salah beli PPOB?</strong><br>Tidak bisa. Pastikan nomor tujuan benar.</div><br>
+            <div><strong>❓ Lupa password?</strong><br>Klik "Lupa Password" di halaman login.</div><br>
+            <div><strong>❓ Apakah materi bisa diakses selamanya?</strong><br>Ya, akses berlaku selamanya setelah beli.</div>
+        </div>
+        
+        <div class="card">
+            <h2>📞 Kontak Admin</h2>
+            <p>📱 WhatsApp: <a href="https://wa.me/${settings.defaultWhatsappNumber}" target="_blank">${settings.defaultWhatsappNumber}</a></p>
+        </div>
+    `;
+    
+    document.getElementById("appRoot").innerHTML = html;
+    document.getElementById("backToDash").onclick = () => renderUserDashboard();
 }
 // ======================== ADMIN PANEL ========================
 function renderAdminLogin() {
