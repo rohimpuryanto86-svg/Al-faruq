@@ -317,35 +317,45 @@ async function purchaseCourse(courseId, price) {
     const newBalance = currentUser.walletBalance - price;
     const newPurchased = [...(currentUser.purchasedCourses || []), courseId];
     
-    // Update ke database
-    const { error } = await supabaseClient
+    // 1. Update saldo user
+    const { error: updateError } = await supabaseClient
         .from('profiles')
         .update({ 
             wallet_balance: newBalance, 
-            purchased_courses: newPurchased 
+            purchased_courses: newPurchased,
+            total_spent: (currentUser.total_spent || 0) + price,
+            last_purchase_at: new Date().toISOString()
         })
         .eq('user_id', currentUser.id);
     
-    if (error) {
-        alert("Gagal membeli kursus: " + error.message);
+    if (updateError) {
+        alert("Gagal membeli kursus: " + updateError.message);
         return false;
     }
     
-    // Update local variable
+    // 2. CATAT TRANSAKSI KE SALES_TRANSACTIONS
+    const { error: salesError } = await supabaseClient
+        .from('sales_transactions')
+        .insert({
+            user_id: currentUser.id,
+            user_name: currentUser.name,
+            course_id: courseId,
+            course_title: course.title,
+            amount: price,
+            final_amount: price,
+            created_at: new Date().toISOString()
+        });
+    
+    if (salesError) {
+        console.error("Gagal catat transaksi:", salesError);
+        // Tetap lanjut meskipun gagal catat
+    } else {
+        console.log("✅ Transaksi tercatat di sales_transactions");
+    }
+    
+    // 3. Update local variable
     currentUser.walletBalance = newBalance;
     currentUser.purchasedCourses = newPurchased;
-    
-    // ========== CATAT TRANSAKSI PENJUALAN ==========
-    await supabaseClient.from('sales_transactions').insert({
-        user_id: currentUser.id,
-        user_name: currentUser.name,
-        course_id: courseId,
-        course_title: course.title,
-        amount: price,
-        final_amount: price,
-        created_at: new Date().toISOString()
-    });
-    // ========== SAMPAI SINI ==========
     
     alert(`✅ Berhasil membeli ${course?.title}! Saldo: ${formatRupiah(newBalance)}`);
     return true;
@@ -363,35 +373,44 @@ async function purchaseBundle() {
     
     const newBalance = currentUser.walletBalance - bundlePrice;
     
-    // Update ke database
-    const { error } = await supabaseClient
+    // 1. Update saldo user
+    const { error: updateError } = await supabaseClient
         .from('profiles')
         .update({ 
             wallet_balance: newBalance, 
-            is_bundle: true 
+            is_bundle: true,
+            total_spent: (currentUser.total_spent || 0) + bundlePrice,
+            last_purchase_at: new Date().toISOString()
         })
         .eq('user_id', currentUser.id);
     
-    if (error) {
-        alert("Gagal membeli bundle: " + error.message);
+    if (updateError) {
+        alert("Gagal membeli bundle: " + updateError.message);
         return false;
     }
     
-    // Update local variable
+    // 2. CATAT TRANSAKSI BUNDLE
+    const { error: salesError } = await supabaseClient
+        .from('sales_transactions')
+        .insert({
+            user_id: currentUser.id,
+            user_name: currentUser.name,
+            course_id: 0,
+            course_title: 'BUNDLE (Semua Kursus)',
+            amount: bundlePrice,
+            final_amount: bundlePrice,
+            created_at: new Date().toISOString()
+        });
+    
+    if (salesError) {
+        console.error("Gagal catat transaksi bundle:", salesError);
+    } else {
+        console.log("✅ Transaksi bundle tercatat");
+    }
+    
+    // 3. Update local variable
     currentUser.walletBalance = newBalance;
     currentUser.isBundle = true;
-    
-    // ========== CATAT TRANSAKSI PENJUALAN BUNDLE ==========
-    await supabaseClient.from('sales_transactions').insert({
-        user_id: currentUser.id,
-        user_name: currentUser.name,
-        course_id: 0,
-        course_title: 'BUNDLE (Semua Kursus)',
-        amount: bundlePrice,
-        final_amount: bundlePrice,
-        created_at: new Date().toISOString()
-    });
-    // ========== SAMPAI SINI ==========
     
     alert(`✅ Berhasil membeli BUNDLE! Saldo: ${formatRupiah(newBalance)}`);
     return true;
