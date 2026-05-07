@@ -282,11 +282,20 @@ async function saveCourseToDB(course) {
             telegram_group: course.telegram_group || course.telegramGroup || "",
             is_active: course.is_active !== undefined ? course.is_active : true
         };
-        const { error } = await supabaseClient.from('courses').upsert(courseData, { onConflict: 'id' });
+        
+        const { error } = await supabaseClient
+            .from('courses')
+            .upsert(courseData, { onConflict: 'id' });  // ← Ganti 'error' jadi 'id'
+        
         if (error) throw error;
         await loadCourses();
         return true;
-    } catch (error) { console.error("Save course error:", error); alert("Gagal menyimpan kursus: " + error.message); return false; }
+        
+    } catch (error) {
+        console.error("Save course error:", error);
+        alert("Gagal menyimpan kursus: " + error.message);
+        return false;
+    }
 }
 
 function isCourseOwned(courseId) {
@@ -297,27 +306,94 @@ function isCourseOwned(courseId) {
 }
 
 async function purchaseCourse(courseId, price) {
-    if (currentUser.walletBalance < price) { alert(`Saldo tidak cukup! Saldo: ${formatRupiah(currentUser.walletBalance)}`); return false; }
+    if (currentUser.walletBalance < price) {
+        alert(`Saldo tidak cukup! Saldo: ${formatRupiah(currentUser.walletBalance)}`);
+        return false;
+    }
+    
     const course = coursesData.find(c => c.id === courseId);
     if (!confirm(`Beli ${course?.title} seharga ${formatRupiah(price)}?`)) return false;
+    
     const newBalance = currentUser.walletBalance - price;
     const newPurchased = [...(currentUser.purchasedCourses || []), courseId];
-    await supabaseClient.from('profiles').update({ wallet_balance: newBalance, purchased_courses: newPurchased }).eq('user_id', currentUser.id);
+    
+    // Update ke database
+    const { error } = await supabaseClient
+        .from('profiles')
+        .update({ 
+            wallet_balance: newBalance, 
+            purchased_courses: newPurchased 
+        })
+        .eq('user_id', currentUser.id);
+    
+    if (error) {
+        alert("Gagal membeli kursus: " + error.message);
+        return false;
+    }
+    
+    // Update local variable
     currentUser.walletBalance = newBalance;
     currentUser.purchasedCourses = newPurchased;
-    alert(`Berhasil membeli ${course?.title}! Saldo: ${formatRupiah(newBalance)}`);
+    
+    // ========== CATAT TRANSAKSI PENJUALAN ==========
+    await supabaseClient.from('sales_transactions').insert({
+        user_id: currentUser.id,
+        user_name: currentUser.name,
+        course_id: courseId,
+        course_title: course.title,
+        amount: price,
+        final_amount: price,
+        created_at: new Date().toISOString()
+    });
+    // ========== SAMPAI SINI ==========
+    
+    alert(`✅ Berhasil membeli ${course?.title}! Saldo: ${formatRupiah(newBalance)}`);
     return true;
 }
 
 async function purchaseBundle() {
     let bundlePrice = getDiscountedPrice(800000);
-    if (currentUser.walletBalance < bundlePrice) { alert(`Saldo tidak cukup! Saldo: ${formatRupiah(currentUser.walletBalance)}`); return false; }
+    
+    if (currentUser.walletBalance < bundlePrice) {
+        alert(`Saldo tidak cukup! Saldo: ${formatRupiah(currentUser.walletBalance)}`);
+        return false;
+    }
+    
     if (!confirm(`Beli BUNDLE (akses semua kursus) seharga ${formatRupiah(bundlePrice)}?`)) return false;
+    
     const newBalance = currentUser.walletBalance - bundlePrice;
-    await supabaseClient.from('profiles').update({ wallet_balance: newBalance, is_bundle: true }).eq('user_id', currentUser.id);
+    
+    // Update ke database
+    const { error } = await supabaseClient
+        .from('profiles')
+        .update({ 
+            wallet_balance: newBalance, 
+            is_bundle: true 
+        })
+        .eq('user_id', currentUser.id);
+    
+    if (error) {
+        alert("Gagal membeli bundle: " + error.message);
+        return false;
+    }
+    
+    // Update local variable
     currentUser.walletBalance = newBalance;
     currentUser.isBundle = true;
-    alert(`Berhasil membeli BUNDLE! Saldo: ${formatRupiah(newBalance)}`);
+    
+    // ========== CATAT TRANSAKSI PENJUALAN BUNDLE ==========
+    await supabaseClient.from('sales_transactions').insert({
+        user_id: currentUser.id,
+        user_name: currentUser.name,
+        course_id: 0,
+        course_title: 'BUNDLE (Semua Kursus)',
+        amount: bundlePrice,
+        final_amount: bundlePrice,
+        created_at: new Date().toISOString()
+    });
+    // ========== SAMPAI SINI ==========
+    
+    alert(`✅ Berhasil membeli BUNDLE! Saldo: ${formatRupiah(newBalance)}`);
     return true;
 }
 // ======================== PPOB EDGE FUNCTION INTEGRATION ========================
@@ -1991,26 +2067,71 @@ async function renderAdminDashboard() {
     const { data: topups } = await supabaseClient.from('withdraw_requests').select('*').eq('status', 'pending').eq('type', 'topup');
     const { data: withdraws } = await supabaseClient.from('withdraw_requests').select('*').eq('status', 'pending').eq('type', 'withdraw');
     
-    let html = `<div class="tabs"><div class="tab" id="logoutAdmin">Logout</div><div class="tab active">Admin Panel</div>
-        <div class="tab" id="generalSettingsTab">Pengaturan Umum</div><div class="tab" id="editCourseJsonTab">Edit Kursus (JSON)</div>
-        <div class="tab" id="editCourseUITab">Edit Kursus (UI Form)</div><div class="tab" id="salesReportTab">Laporan Penjualan</div>
-        <div class="tab" id="promoTab">Diskon</div><div class="tab" id="financialTab">Laporan Keuangan</div>
-        <div class="tab" id="studentMgmtTab">Manajemen Peserta</div><div class="tab" id="earlyBirdTab">Early Bird</div>
-        <div class="tab" id="ppobMarkupTab">PPOB Markup</div></div>
-        <div class="tab" id="practicalTab">📝 Nilai Praktik</div>
-        <div id="adminContent"><div class="card"><h2>Pendaftaran Menunggu (${pendingUsers?.length || 0})</h2>
-        ${(pendingUsers || []).map(u => `<div style="border-bottom:1px solid #eee; padding:10px;"><strong>${u.full_name}</strong> (${u.email})<br>WhatsApp: ${u.phone || '-'}<br>
-        <button class="btn-approve" data-user="${u.user_id}" style="background:#27ae60;">Setujui</button>
-        <button class="btn-reject" data-user="${u.user_id}" style="background:#e74c3c;">Tolak</button></div>`).join('') || '<p>Tidak ada pendaftaran pending.</p>'}</div>
-        <div class="card"><h2>Request Top Up (${topups?.length || 0})</h2>${(topups || []).map(t => `<div style="border-bottom:1px solid #eee; padding:10px;"><strong>User:</strong> ${t.user_id}<br><strong>Nominal:</strong> ${formatRupiah(t.amount)}<br>
-        <a href="${t.proof_url}" target="_blank">Lihat Bukti</a><br><button class="approve-topup" data-id="${t.id}" data-user="${t.user_id}" data-amount="${t.amount}" style="background:#27ae60;">Setujui</button>
-        <button class="reject-topup" data-id="${t.id}" style="background:#e74c3c;">Tolak</button></div>`).join('') || '<p>Tidak ada request top up.</p>'}</div>
-        <div class="card"><h2>Request Withdraw (${withdraws?.length || 0})</h2>${(withdraws || []).map(w => `<div style="border-bottom:1px solid #eee; padding:10px;"><strong>User:</strong> ${w.user_id}<br><strong>Jumlah:</strong> ${formatRupiah(w.amount)}<br>
-        <button class="approve-withdraw" data-id="${w.id}" data-user="${w.user_id}" data-amount="${w.amount}" style="background:#27ae60;">Setujui</button>
-        <button class="reject-withdraw" data-id="${w.id}" style="background:#e74c3c;">Tolak</button></div>`).join('') || '<p>Tidak ada request withdraw.</p>'}</div></div>
-        <button id="backBtn" class="btn-back">Kembali ke Beranda</button>`;
+    let html = `
+        <div class="tabs">
+            <div class="tab" id="logoutAdmin">Logout</div>
+            <div class="tab active">Admin Panel</div>
+            <div class="tab" id="generalSettingsTab">Pengaturan Umum</div>
+            <div class="tab" id="editCourseJsonTab">Edit Kursus (JSON)</div>
+            <div class="tab" id="editCourseUITab">Edit Kursus (UI Form)</div>
+            <div class="tab" id="salesReportTab">Laporan Penjualan</div>
+            <div class="tab" id="promoTab">Diskon</div>
+            <div class="tab" id="financialTab">Laporan Keuangan</div>
+            <div class="tab" id="studentMgmtTab">Manajemen Peserta</div>
+            <div class="tab" id="earlyBirdTab">Early Bird</div>
+            <div class="tab" id="ppobMarkupTab">PPOB Markup</div>
+            <div class="tab" id="practicalTab">Nilai Praktik</div>
+        </div>
+        <div id="adminContent">
+            <div class="card">
+                <h2>📋 Pendaftaran Menunggu (${pendingUsers?.length || 0})</h2>
+                ${(pendingUsers || []).map(u => `
+                    <div style="border-bottom:1px solid #eee; padding:10px;">
+                        <strong>${u.full_name}</strong> (${u.email})<br>
+                        WhatsApp: ${u.phone || '-'}<br>
+                        <button class="btn-approve" data-user="${u.user_id}" style="background:#27ae60;">✅ Setujui</button>
+                        <button class="btn-reject" data-user="${u.user_id}" style="background:#e74c3c;">❌ Tolak</button>
+                    </div>
+                `).join('') || '<p>✨ Tidak ada pendaftaran pending.</p>'}
+            </div>
+            
+            <div class="card">
+                <h2>💰 Request Top Up (${topups?.length || 0})</h2>
+                ${(topups || []).map(t => `
+                    <div style="border-bottom:1px solid #eee; padding:10px;">
+                        <div><strong>User ID:</strong> ${t.user_id}</div>
+                        <div><strong>Nominal:</strong> ${formatRupiah(t.amount)}</div>
+                        <a href="${t.proof_url}" target="_blank">📷 Lihat Bukti</a><br>
+                        <button class="approve-topup" data-id="${t.id}" data-user="${t.user_id}" data-amount="${t.amount}" style="background:#27ae60; margin-top:10px;">✅ Setujui</button>
+                        <button class="reject-topup" data-id="${t.id}" style="background:#e74c3c;">❌ Tolak</button>
+                    </div>
+                `).join('') || '<p>✨ Tidak ada request top up.</p>'}
+            </div>
+            
+            <div class="card">
+                <h2>📤 Request Withdraw (${withdraws?.length || 0})</h2>
+                ${(withdraws || []).map(w => `
+                    <div style="border-bottom:1px solid #eee; padding:10px; margin-bottom:10px; background:#f9f9f9; border-radius:8px;">
+                        <div><strong>User ID:</strong> ${w.user_id.substring(0, 12)}...</div>
+                        <div><strong>Jumlah:</strong> <span style="color:#e74c3c; font-weight:bold;">${formatRupiah(w.amount)}</span></div>
+                        <div><strong>Metode:</strong> ${w.bank_name ? w.bank_name.toUpperCase() : '-'}</div>
+                        <div><strong>No. Tujuan:</strong> <code>${w.bank_account || '-'}</code></div>
+                        <div><strong>Catatan:</strong> ${w.notes || '-'}</div>
+                        <div><strong>Tanggal:</strong> ${new Date(w.created_at).toLocaleString('id-ID')}</div>
+                        <div style="margin-top:10px;">
+                            <button class="approve-withdraw" data-id="${w.id}" data-user="${w.user_id}" data-amount="${w.amount}" style="background:#27ae60; padding:5px 15px;">✅ Setujui</button>
+                            <button class="reject-withdraw" data-id="${w.id}" style="background:#e74c3c; padding:5px 15px;">❌ Tolak</button>
+                        </div>
+                    </div>
+                `).join('') || '<p>✨ Tidak ada request withdraw.</p>'}
+            </div>
+        </div>
+        <button id="backBtn" class="btn-back">Kembali ke Beranda</button>
+    `;
+    
     document.getElementById("appRoot").innerHTML = html;
     
+    // Event Listeners
     document.getElementById("logoutAdmin").onclick = async () => { await supabaseClient.auth.signOut(); window.location.hash = "#landing"; };
     document.getElementById("backBtn").onclick = () => window.location.hash = "#landing";
     document.getElementById("generalSettingsTab").onclick = () => renderGeneralSettings();
@@ -2024,11 +2145,109 @@ async function renderAdminDashboard() {
     document.getElementById("ppobMarkupTab").onclick = () => renderPPOBMarkupSettings();
     document.getElementById("practicalTab").onclick = () => renderPracticalScoresAdmin();
     
-    document.querySelectorAll(".btn-approve").forEach(btn => { btn.onclick = async () => { await supabaseClient.from('profiles').update({ status: 'approved' }).eq('user_id', btn.getAttribute("data-user")); alert("User disetujui!"); renderAdminDashboard(); }; });
-    document.querySelectorAll(".btn-reject").forEach(btn => { btn.onclick = async () => { if(confirm("Tolak pendaftaran user ini?")) { await supabaseClient.from('profiles').delete().eq('user_id', btn.getAttribute("data-user")); alert("User ditolak!"); renderAdminDashboard(); } }; });
-    document.querySelectorAll(".approve-topup").forEach(btn => { btn.onclick = async () => { let amount = parseInt(btn.getAttribute("data-amount")); let userId = btn.getAttribute("data-user"); let { data: profile } = await supabaseClient.from('profiles').select('wallet_balance').eq('user_id', userId).single(); let newBalance = (profile?.wallet_balance || 0) + amount; await supabaseClient.from('profiles').update({ wallet_balance: newBalance }).eq('user_id', userId); await supabaseClient.from('withdraw_requests').update({ status: 'approved' }).eq('id', btn.getAttribute("data-id")); alert("Top up disetujui!"); renderAdminDashboard(); }; });
-    document.querySelectorAll(".reject-topup").forEach(btn => { btn.onclick = async () => { await supabaseClient.from('withdraw_requests').update({ status: 'rejected' }).eq('id', btn.getAttribute("data-id")); alert("Top up ditolak!"); renderAdminDashboard(); }; });
+    // Approve User
+    document.querySelectorAll(".btn-approve").forEach(btn => {
+        btn.onclick = async () => {
+            await supabaseClient.from('profiles').update({ status: 'approved' }).eq('user_id', btn.getAttribute("data-user"));
+            alert("✅ User disetujui!");
+            renderAdminDashboard();
+        };
+    });
+    
+    // Reject User
+    document.querySelectorAll(".btn-reject").forEach(btn => {
+        btn.onclick = async () => {
+            if(confirm("Tolak pendaftaran user ini?")) {
+                await supabaseClient.from('profiles').delete().eq('user_id', btn.getAttribute("data-user"));
+                alert("❌ User ditolak!");
+                renderAdminDashboard();
+            }
+        };
+    });
+    
+    // Approve Top Up
+    document.querySelectorAll(".approve-topup").forEach(btn => {
+        btn.onclick = async () => {
+            let amount = parseInt(btn.getAttribute("data-amount"));
+            let userId = btn.getAttribute("data-user");
+            let requestId = btn.getAttribute("data-id");
+            
+            let { data: profile } = await supabaseClient.from('profiles').select('wallet_balance').eq('user_id', userId).single();
+            let newBalance = (profile?.wallet_balance || 0) + amount;
+            
+            await supabaseClient.from('profiles').update({ wallet_balance: newBalance }).eq('user_id', userId);
+            await supabaseClient.from('withdraw_requests').update({ status: 'approved' }).eq('id', requestId);
+            
+            alert(`✅ Top up ${formatRupiah(amount)} berhasil disetujui!`);
+            renderAdminDashboard();
+        };
+    });
+    
+    // Reject Top Up
+    document.querySelectorAll(".reject-topup").forEach(btn => {
+        btn.onclick = async () => {
+            await supabaseClient.from('withdraw_requests').update({ status: 'rejected' }).eq('id', btn.getAttribute("data-id"));
+            alert("❌ Top up ditolak!");
+            renderAdminDashboard();
+        };
+    });
+    
+    // ========== APPROVE WITHDRAW (YANG INI YANG PERLU DIPERBAIKI) ==========
+    document.querySelectorAll(".approve-withdraw").forEach(btn => {
+        btn.onclick = async () => {
+            let amount = parseInt(btn.getAttribute("data-amount"));
+            let userId = btn.getAttribute("data-user");
+            let requestId = btn.getAttribute("data-id");
+            
+            // Ambil detail request
+            const { data: request } = await supabaseClient
+                .from('withdraw_requests')
+                .select('*')
+                .eq('id', requestId)
+                .single();
+            
+            if (!request) {
+                alert("Data request tidak ditemukan!");
+                return;
+            }
+            
+            let methodName = request.bank_name ? request.bank_name.toUpperCase() : '-';
+            let accountNumber = request.bank_account || '-';
+            
+            let confirmMsg = `✅ SETUJUI WITHDRAW?\n\n`;
+            confirmMsg += `💰 Jumlah: ${formatRupiah(amount)}\n`;
+            confirmMsg += `🏦 Metode: ${methodName}\n`;
+            confirmMsg += `📱 No. Tujuan: ${accountNumber}\n`;
+            confirmMsg += `📝 Catatan: ${request.notes || '-'}\n\n`;
+            confirmMsg += `Lanjutkan?`;
+            
+            if (!confirm(confirmMsg)) return;
+            
+            // Update status
+            await supabaseClient.from('withdraw_requests').update({ status: 'approved' }).eq('id', requestId);
+            
+            // Kurangi saldo user
+            let { data: profile } = await supabaseClient.from('profiles').select('wallet_balance').eq('user_id', userId).single();
+            let newBalance = Math.max(0, (profile?.wallet_balance || 0) - amount);
+            await supabaseClient.from('profiles').update({ wallet_balance: newBalance }).eq('user_id', userId);
+            
+            alert(`✅ Withdraw ${formatRupiah(amount)} BERHASIL disetujui!\n\n🏦 ${methodName}\n📱 ${accountNumber}`);
+            renderAdminDashboard();
+        };
+    });
+    
+    // Reject Withdraw
+    document.querySelectorAll(".reject-withdraw").forEach(btn => {
+        btn.onclick = async () => {
+            if(confirm("Tolak request withdraw ini?")) {
+                await supabaseClient.from('withdraw_requests').update({ status: 'rejected' }).eq('id', btn.getAttribute("data-id"));
+                alert("❌ Withdraw ditolak!");
+                renderAdminDashboard();
+            }
+        };
+    });
 }
+
 
 // ======================== EDIT KURSUS JSON LENGKAP ========================
 async function renderEditCourseJson() {
@@ -2425,16 +2644,268 @@ async function renderEditLessonForm() {
 }
 
 async function renderSalesReport() {
-    let { data: profiles } = await supabaseClient.from('profiles').select('*').eq('status', 'approved');
-    let totalRevenue = (profiles || []).reduce((sum, p) => sum + (p.price_paid || 0), 0);
-    let html = `<div class="card"><h2>Laporan Penjualan</h2><div class="stats-grid"><div class="stat-card"><div class="stat-number">${profiles?.length || 0}</div><div>Total Peserta</div></div>
-        <div class="stat-card"><div class="stat-number">${formatRupiah(totalRevenue)}</div><div>Total Pendapatan</div></div></div><button id="backBtn" class="btn-back">Kembali</button></div>`;
+    // Ambil data penjualan dari tabel sales_transactions
+    let { data: sales, error: salesError } = await supabaseClient
+        .from('sales_transactions')
+        .select('*')
+        .order('created_at', { ascending: false });
+    
+    // Jika tabel kosong, ambil dari data pembelian di profiles
+    if (!sales || sales.length === 0) {
+        // Hitung manual dari data yang ada
+        const { data: profiles } = await supabaseClient
+            .from('profiles')
+            .select('*')
+            .eq('status', 'approved');
+        
+        let manualSales = [];
+        let totalRevenue = 0;
+        
+        for (const p of profiles || []) {
+            if (p.purchased_courses && p.purchased_courses.length > 0) {
+                for (const courseId of p.purchased_courses) {
+                    const course = coursesData.find(c => c.id === courseId);
+                    if (course) {
+                        let amount = p.is_bundle ? 800000 : course.price;
+                        if (p.price_paid) amount = p.price_paid;
+                        
+                        manualSales.push({
+                            user_name: p.full_name,
+                            course_title: course.title,
+                            amount: amount,
+                            created_at: p.created_at || new Date().toISOString()
+                        });
+                        totalRevenue += amount;
+                    }
+                }
+            }
+        }
+        
+        sales = manualSales;
+        totalRevenue = totalRevenue;
+    } else {
+        totalRevenue = sales.reduce((sum, s) => sum + (s.final_amount || s.amount), 0);
+    }
+    
+    // Hitung statistik
+    let totalTransactions = sales?.length || 0;
+    let averageTransaction = totalTransactions > 0 ? totalRevenue / totalTransactions : 0;
+    
+    // Hitung transaksi per bulan
+    let monthlyData = {};
+    for (const s of sales || []) {
+        let month = new Date(s.created_at).toLocaleDateString('id-ID', { year: 'numeric', month: 'long' });
+        if (!monthlyData[month]) monthlyData[month] = { count: 0, total: 0 };
+        monthlyData[month].count++;
+        monthlyData[month].total += (s.final_amount || s.amount);
+    }
+    
+    let html = `
+        <div class="card">
+            <h2>📊 LAPORAN PENJUALAN</h2>
+            <div class="stats-grid">
+                <div class="stat-card"><div class="stat-number">${totalTransactions}</div><div>Total Transaksi</div></div>
+                <div class="stat-card"><div class="stat-number">${formatRupiah(totalRevenue)}</div><div>Total Pendapatan</div></div>
+                <div class="stat-card"><div class="stat-number">${formatRupiah(averageTransaction)}</div><div>Rata-Rata Transaksi</div></div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>📈 PENJUALAN PER BULAN</h2>
+            <table class="report-table">
+                <thead><tr style="background:#1e6b3b; color:white;"><th>Bulan</th><th>Jumlah Transaksi</th><th>Total Pendapatan</th></tr></thead>
+                <tbody>
+                    ${Object.entries(monthlyData).map(([month, data]) => `
+                        <tr><td>${month}</td><td>${data.count}</td><td>${formatRupiah(data.total)}</td></tr>
+                    `).join('') || '<td><td colspan="3">Belum ada data</td></tr>'}
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="card">
+            <h2>📋 DETAIL TRANSAKSI</h2>
+            <div style="overflow-x:auto;">
+                <table class="report-table">
+                    <thead><tr style="background:#1e6b3b; color:white;">
+                        <th>Tanggal</th><th>Pembeli</th><th>Kursus</th><th>Jumlah</th>
+                    </tr></thead>
+                    <tbody>
+                        ${(sales || []).map(s => `
+                            <tr>
+                                <td>${new Date(s.created_at).toLocaleDateString('id-ID')}</td>
+                                <td>${s.user_name || '-'}</td>
+                                <td>${s.course_title || '-'}</td>
+                                <td>${formatRupiah(s.final_amount || s.amount)}</td>
+                            </tr>
+                        `).join('') || '<tr><td colspan="4">Belum ada transaksi</td></tr>'}
+                    </tbody>
+                </table>
+            </div>
+            <button id="exportSalesBtn" class="btn-success" style="margin-top:15px;">📥 Export CSV</button>
+            <button id="backBtn" class="btn-back">Kembali</button>
+        </div>
+    `;
+    
     document.getElementById("adminContent").innerHTML = html;
+    
     document.getElementById("backBtn").onclick = () => renderAdminDashboard();
+    
+    document.getElementById("exportSalesBtn").onclick = () => {
+        let csvRows = [["Tanggal", "Pembeli", "Kursus", "Jumlah"]];
+        for (const s of sales || []) {
+            csvRows.push([
+                new Date(s.created_at).toLocaleDateString('id-ID'),
+                s.user_name || '-',
+                s.course_title || '-',
+                s.final_amount || s.amount
+            ]);
+        }
+        let csvContent = csvRows.map(row => row.join(",")).join("\n");
+        let blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv" });
+        let a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `laporan_penjualan_${new Date().toISOString().slice(0,10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+        alert("✅ Laporan penjualan diexport!");
+    };
 }
 
 async function renderPromoManager() { document.getElementById("adminContent").innerHTML = `<div class="card"><h2>Manajemen Diskon</h2><button id="backBtn" class="btn-back">Kembali</button></div>`; document.getElementById("backBtn").onclick = () => renderAdminDashboard(); }
-async function renderFinancialReport() { document.getElementById("adminContent").innerHTML = `<div class="card"><h2>Laporan Keuangan</h2><button id="backBtn" class="btn-back">Kembali</button></div>`; document.getElementById("backBtn").onclick = () => renderAdminDashboard(); }
+async function renderFinancialReport() {
+    // Ambil semua transaksi penjualan
+    let { data: sales } = await supabaseClient
+        .from('sales_transactions')
+        .select('*')
+        .order('created_at', { ascending: false });
+    
+    // Hitung total pendapatan
+    let totalRevenue = 0;
+    let monthlyRevenue = {};
+    let yearlyRevenue = {};
+    
+    for (const s of sales || []) {
+        let amount = s.final_amount || s.amount;
+        totalRevenue += amount;
+        
+        let date = new Date(s.created_at);
+        let monthKey = `${date.getFullYear()}-${date.getMonth() + 1}`;
+        let monthName = date.toLocaleDateString('id-ID', { year: 'numeric', month: 'long' });
+        let yearKey = `${date.getFullYear()}`;
+        
+        if (!monthlyRevenue[monthKey]) monthlyRevenue[monthKey] = { name: monthName, total: 0, count: 0 };
+        monthlyRevenue[monthKey].total += amount;
+        monthlyRevenue[monthKey].count++;
+        
+        if (!yearlyRevenue[yearKey]) yearlyRevenue[yearKey] = 0;
+        yearlyRevenue[yearKey] += amount;
+    }
+    
+    // Hitung pajak (0.5% dari omzet untuk UMKM)
+    let taxRate = 0.5; // 0.5%
+    let taxAmount = totalRevenue * (taxRate / 100);
+    let netProfit = totalRevenue - taxAmount;
+    
+    let currentYear = new Date().getFullYear();
+    let currentYearRevenue = yearlyRevenue[currentYear] || 0;
+    let currentYearTax = currentYearRevenue * (taxRate / 100);
+    
+    let html = `
+        <div class="card">
+            <h2>💰 LAPORAN KEUANGAN & PAJAK</h2>
+            <div class="alert-info" style="margin-bottom:15px;">
+                <strong>📌 Keterangan:</strong><br>
+                • Pajak UMKM: <strong>0,5%</strong> dari omzet bruto (PP No. 23/2018)<br>
+                • Omzet di bawah Rp 500 juta/tahun: <strong>TIDAK KENA PAJAK</strong><br>
+                • Omzet di atas Rp 500 juta/tahun: dikenakan PPh Final 0,5%
+            </div>
+            
+            <div class="stats-grid">
+                <div class="stat-card"><div class="stat-number">${formatRupiah(totalRevenue)}</div><div>Total Omzet (Kotor)</div></div>
+                <div class="stat-card"><div class="stat-number">${formatRupiah(taxAmount)}</div><div>Pajak Terutang (0,5%)</div></div>
+                <div class="stat-card"><div class="stat-number">${formatRupiah(netProfit)}</div><div>Laba Bersih</div></div>
+            </div>
+            
+            <div class="alert-warning" style="margin-top:15px; padding:15px;">
+                <strong>⚠️ Catatan Pajak:</strong><br>
+                • Jika omzet setahun <strong>${formatRupiah(500000000)}</strong>, maka <strong>TIDAK ADA KEWAJIBAN PAJAK</strong><br>
+                • Omzet tahun ini: ${formatRupiah(currentYearRevenue)} ${currentYearRevenue >= 500000000 ? '(Sudah melebihi batas, wajib lapor pajak)' : '(Masih di bawah batas, bebas pajak)'}
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>📅 PENDAPATAN PER TAHUN</h2>
+            <table class="report-table">
+                <thead><tr style="background:#1e6b3b; color:white;"><th>Tahun</th><th>Omzet</th><th>Pajak (0,5%)</th><th>Status</th></tr></thead>
+                <tbody>
+                    ${Object.entries(yearlyRevenue).map(([year, amount]) => {
+                        let tax = amount * (taxRate / 100);
+                        let isTaxable = amount >= 500000000;
+                        return `<tr><td>${year}</td><td>${formatRupiah(amount)}</td><td>${formatRupiah(tax)}</td>
+                        <td style="color:${isTaxable ? '#e74c3c' : '#27ae60'}">${isTaxable ? 'Wajib Lapor' : 'Bebas Pajak'}</td></tr>`;
+                    }).join('') || '<tr><td colspan="4">Belum ada data</td></tr>'}
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="card">
+            <h2>📆 PENDAPATAN PER BULAN (TAHUN INI)</h2>
+            <div style="overflow-x:auto;">
+                <table class="report-table">
+                    <thead><tr style="background:#1e6b3b; color:white;"><th>Bulan</th><th>Jumlah Transaksi</th><th>Omzet</th><th>Pajak (0,5%)</th><th>Status</th></tr></thead>
+                    <tbody>
+                        ${Object.entries(monthlyRevenue).map(([key, data]) => {
+                            let tax = data.total * (taxRate / 100);
+                            return `<tr><td>${data.name}</td><td>${data.count}</td><td>${formatRupiah(data.total)}</td><td>${formatRupiah(tax)}</td>
+                            <td style="color:${currentYearRevenue >= 500000000 ? '#e74c3c' : '#27ae60'}">${currentYearRevenue >= 500000000 ? 'Kena Pajak' : 'Bebas Pajak'}</td></tr>`;
+                        }).join('') || '<tr><td colspan="5">Belum ada data</td></tr>'}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>🧾 SURAT KETERANGAN PAJAK (Sederhana)</h2>
+            <div style="background:white; padding:20px; border-radius:12px; border:1px solid #ddd; color:#333;">
+                <p style="text-align:center; font-weight:bold; font-size:14pt;">ALFARUQ ONLINE COURSE</p>
+                <p style="text-align:center;">Laporan Penghasilan UMKM</p>
+                <hr>
+                <p><strong>Periode:</strong> Januari - Desember ${currentYear}</p>
+                <p><strong>Total Omzet:</strong> ${formatRupiah(currentYearRevenue)}</p>
+                <p><strong>Pajak UMKM (0,5%):</strong> ${formatRupiah(currentYearTax)}</p>
+                <p><strong>Status:</strong> ${currentYearRevenue >= 500000000 ? 'Wajib Lapor SPT Masa PPh Final UMKM' : 'Omzet masih di bawah Rp 500 juta, tidak wajib lapor pajak'}</p>
+                <hr>
+                <p style="font-size:9pt; color:#999;">*Dihasilkan secara otomatis oleh sistem. Data berdasarkan transaksi yang tercatat.</p>
+            </div>
+            <button id="printTaxReport" class="btn-primary" style="margin-top:15px;">🖨️ Cetak Laporan Pajak</button>
+        </div>
+        
+        <button id="backBtn" class="btn-back">Kembali</button>
+    `;
+    
+    document.getElementById("adminContent").innerHTML = html;
+    
+    document.getElementById("backBtn").onclick = () => renderAdminDashboard();
+    
+    document.getElementById("printTaxReport").onclick = () => {
+        let printContent = document.querySelector(".card:last-child div");
+        let printWindow = window.open('', '_blank');
+        printWindow.document.write(`
+            <html><head><title>Laporan Pajak ALFARUQ</title>
+            <style>
+                body { font-family: Arial, sans-serif; padding: 40px; }
+                .header { text-align: center; margin-bottom: 30px; }
+                .content { margin: 20px 0; }
+                table { width: 100%; border-collapse: collapse; }
+                td, th { border: 1px solid #ddd; padding: 8px; }
+            </style>
+            </head>
+            <body>${printContent.outerHTML}</body></html>
+        `);
+        printWindow.document.close();
+        printWindow.print();
+    };
+}
 async function renderStudentDashboard() {
     let { data: profiles } = await supabaseClient.from('profiles').select('*');
     let html = `<div class="card"><h2>Manajemen Peserta</h2><table class="report-table"><thead><tr><th>Nama</th><th>User ID</th><th>Status</th><th>Aksi</th></tr></thead>
