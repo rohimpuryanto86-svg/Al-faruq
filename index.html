@@ -2174,52 +2174,79 @@ async function renderPracticalScoresAdmin() {
 }
 
 async function loadPracticalScoresList() {
-    const { data: scores, error } = await supabaseClient
-        .from('practical_scores')
-        .select('*, profiles(full_name)');
-    
     const container = document.getElementById("practicalList");
     if (!container) return;
     
-    if (error || !scores || scores.length === 0) {
-        container.innerHTML = '<div class="alert-info">Belum ada nilai praktik.</div>';
-        return;
-    }
-    
-    let html = `
-        <table class="report-table">
-            <thead>
-                <tr style="background:#1e6b3b; color:white;">
-                    <th>Peserta</th>
-                    <th>Kursus</th>
-                    <th>Materi</th>
-                    <th>Nilai</th>
-                    <th>Catatan</th>
-                    <th>Tanggal</th>
-                </tr>
-            </thead>
-            <tbody>
-    `;
-    
-    for (const s of scores) {
-        const course = coursesData.find(c => c.id === s.course_id);
-        const lesson = course?.lessons[s.lesson_id];
-        const userName = s.profiles?.full_name || s.user_id;
+    try {
+        // Ambil data nilai praktik
+        const { data: scores, error } = await supabaseClient
+            .from('practical_scores')
+            .select('*')
+            .order('created_at', { ascending: false });
         
-        html += `
-            <tr>
-                <td>${userName}</td>
-                <td>${course?.title || '-'}</td>
-                <td>${lesson?.title || `Materi ${s.lesson_id + 1}`}</td>
-                <td style="color:${s.score >= 70 ? '#27ae60' : '#e74c3c'}; font-weight:bold;">${s.score}/100</td>
-                <td>${s.notes || '-'}</td>
-                <td>${new Date(s.created_at).toLocaleDateString('id-ID')}</td>
-            </tr>
+        if (error) {
+            console.error("Error:", error);
+            container.innerHTML = '<div class="alert-danger">Gagal memuat data: ' + error.message + '</div>';
+            return;
+        }
+        
+        if (!scores || scores.length === 0) {
+            container.innerHTML = '<div class="alert-info">Belum ada nilai praktik.</div>';
+            return;
+        }
+        
+        let html = `
+            <table class="report-table">
+                <thead>
+                    <tr style="background:#1e6b3b; color:white;">
+                        <th>Peserta</th>
+                        <th>Kursus</th>
+                        <th>Materi</th>
+                        <th>Nilai</th>
+                        <th>Catatan</th>
+                        <th>Tanggal</th>
+                    </tr>
+                </thead>
+                <tbody>
         `;
+        
+        for (const s of scores) {
+            // Ambil nama user
+            let userName = s.user_id;
+            const { data: userData } = await supabaseClient
+                .from('profiles')
+                .select('full_name')
+                .eq('user_id', s.user_id)
+                .single();
+            
+            if (userData && userData.full_name) {
+                userName = userData.full_name;
+            }
+            
+            const course = coursesData.find(c => c.id === s.course_id);
+            const lesson = course?.lessons[s.lesson_id];
+            const courseTitle = course?.title || '-';
+            const lessonTitle = lesson?.title || `Materi ${(s.lesson_id || 0) + 1}`;
+            
+            html += `
+                <tr>
+                    <td>${escapeHtml(userName)}</td>
+                    <td>${escapeHtml(courseTitle)}</td>
+                    <td>${escapeHtml(lessonTitle)}</td>
+                    <td style="color:${s.score >= 70 ? '#27ae60' : '#e74c3c'}; font-weight:bold;">${s.score}/100</td>
+                    <td>${escapeHtml(s.notes || '-')}</td>
+                    <td>${new Date(s.created_at).toLocaleDateString('id-ID')}</td>
+                </tr>
+            `;
+        }
+        
+        html += `</tbody></table>`;
+        container.innerHTML = html;
+        
+    } catch (err) {
+        console.error("Error:", err);
+        container.innerHTML = '<div class="alert-danger">Error: ' + err.message + '</div>';
     }
-    
-    html += `</tbody></table>`;
-    container.innerHTML = html;
 }
 // ======================== PPOB MARKUP SETTINGS ========================
 async function renderPPOBMarkupSettings() {
