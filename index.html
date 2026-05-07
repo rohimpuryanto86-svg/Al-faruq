@@ -1227,55 +1227,55 @@ async function renderReportPage() {
         btn.disabled = true;
         btn.textContent = "Menyiapkan PDF...";
 
-        // Re-fetch scores fresh from DB so the report is never blank
         const { data: freshScores } = await supabaseClient
-            .from('scores')
-            .select('*')
-            .eq('user_id', currentUser.id);
+            .from('scores').select('*').eq('user_id', currentUser.id);
         currentUser.scores = freshScores || [];
 
-        const scores = currentUser.scores;
-        const rowsHtml = scores.length > 0
-            ? scores.map(s => {
+        const rowsHtml = currentUser.scores.length > 0
+            ? currentUser.scores.map(s => {
                 let course = coursesData.find(c => c.id === s.course_id);
-                let lesson = course?.lessons[s.lesson_index ?? s.lesson_id];
-                return `<tr><td>${course?.title || '-'}</td><td>${lesson?.title || '-'}</td><td>${s.quiz_score != null ? s.quiz_score : '-'}</td></tr>`;
+                let lesson = course?.lessons[s.lesson_id];
+                return '<tr>' +
+                    '<td style="border:1px solid #ddd;padding:8px;">' + (course ? course.title : '-') + '</td>' +
+                    '<td style="border:1px solid #ddd;padding:8px;">' + (lesson ? lesson.title : '-') + '</td>' +
+                    '<td style="border:1px solid #ddd;padding:8px;">' + (s.quiz_score != null ? s.quiz_score : '-') + '</td>' +
+                    '</tr>';
             }).join('')
-            : `<tr><td colspan="3" style="text-align:center;color:#999;">Belum ada nilai</td></tr>`;
+            : '<tr><td colspan="3" style="border:1px solid #ddd;padding:8px;text-align:center;color:#999;">Belum ada nilai</td></tr>';
 
-        const reportEl = document.createElement('div');
-        reportEl.innerHTML = `
-            <div style="font-family:Arial,sans-serif; padding:30px; max-width:800px; margin:auto;">
-                <h1 style="text-align:center; color:#1e6b3b; font-size:20pt; margin-bottom:5px;">ALFARUQ ONLINE COURSE</h1>
-                <h2 style="text-align:center; font-size:14pt; font-weight:normal; margin-bottom:20px;">Laporan Hasil Belajar</h2>
-                <p><strong>Nama:</strong> ${escapeHtml(currentUser.name)}</p>
-                <p><strong>Tanggal:</strong> ${new Date().toLocaleDateString('id-ID')}</p>
-                <br>
-                <table style="width:100%; border-collapse:collapse; margin-top:10px;">
-                    <thead>
-                        <tr style="background:#1e6b3b; color:white;">
-                            <th style="border:1px solid #ddd; padding:8px; text-align:left;">Kursus</th>
-                            <th style="border:1px solid #ddd; padding:8px; text-align:left;">Materi</th>
-                            <th style="border:1px solid #ddd; padding:8px; text-align:left;">Nilai</th>
-                        </tr>
-                    </thead>
-                    <tbody>${rowsHtml}</tbody>
-                </table>
-            </div>
-        `;
-        document.body.appendChild(reportEl);
+        const wrapper = document.createElement('div');
+        wrapper.style.cssText = 'position:fixed;top:0;left:0;z-index:9999;background:white;width:750px;padding:40px;font-family:Arial,sans-serif;color:#333;';
+        wrapper.innerHTML =
+            '<h1 style="text-align:center;color:#1e6b3b;font-size:22pt;margin:0 0 4px 0;">ALFARUQ ONLINE COURSE</h1>' +
+            '<h2 style="text-align:center;font-size:13pt;font-weight:normal;margin:0 0 24px 0;color:#555;">Laporan Hasil Belajar</h2>' +
+            '<p style="margin:4px 0;"><strong>Nama:</strong> ' + escapeHtml(currentUser.name || '-') + '</p>' +
+            '<p style="margin:4px 0;"><strong>Tanggal:</strong> ' + new Date().toLocaleDateString('id-ID') + '</p>' +
+            '<br>' +
+            '<table style="width:100%;border-collapse:collapse;margin-top:8px;">' +
+                '<thead><tr style="background:#1e6b3b;color:white;">' +
+                    '<th style="border:1px solid #ddd;padding:8px;text-align:left;">Kursus</th>' +
+                    '<th style="border:1px solid #ddd;padding:8px;text-align:left;">Materi</th>' +
+                    '<th style="border:1px solid #ddd;padding:8px;text-align:left;">Nilai</th>' +
+                '</tr></thead>' +
+                '<tbody>' + rowsHtml + '</tbody>' +
+            '</table>' +
+            '<p style="margin-top:40px;font-size:9pt;color:#aaa;text-align:center;">Dicetak oleh sistem ALFARUQ ONLINE COURSE</p>';
 
-        await html2pdf().set({
-            margin: 10,
-            filename: `Rapor_${(currentUser.name || 'Peserta').replace(/\s+/g, '_')}.pdf`,
-            image: { type: 'jpeg', quality: 0.98 },
-            html2canvas: { scale: 2, useCORS: true },
-            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-        }).from(reportEl).save();
+        document.body.appendChild(wrapper);
 
-        document.body.removeChild(reportEl);
-        btn.disabled = false;
-        btn.textContent = "Download Rapor PDF";
+        try {
+            await html2pdf().set({
+                margin: 10,
+                filename: 'Rapor_' + (currentUser.name || 'Peserta').replace(/\s+/g, '_') + '.pdf',
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            }).from(wrapper).save();
+        } finally {
+            document.body.removeChild(wrapper);
+            btn.disabled = false;
+            btn.textContent = "Download Rapor PDF";
+        }
     };
 }
 async function renderWalletPage() {
