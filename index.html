@@ -1139,6 +1139,56 @@ async function renderCertificatePage() {
                 const certId = currentUser.id.substring(0, 8).toUpperCase() + '-' + course.id + '-' + Date.now();
                 const dateStr = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
 
+                // Save certificate record to DB (upsert so re-downloads keep same number)
+                let certNumber = certId;
+                try {
+                    // Check if cert already exists for this user+course
+                    const { data: existingCert } = await supabaseClient
+                        .from('certificates')
+                        .select('cert_number')
+                        .eq('user_id', currentUser.id)
+                        .eq('course_id', course.id)
+                        .single();
+                    if (existingCert && existingCert.cert_number) {
+                        certNumber = existingCert.cert_number;
+                    } else {
+                        await supabaseClient.from('certificates').upsert({
+                            user_id: currentUser.id,
+                            user_name: currentUser.name,
+                            course_id: course.id,
+                            course_title: course.title,
+                            cert_number: certNumber,
+                            final_score: finalScore,
+                            issued_at: new Date().toISOString()
+                        }, { onConflict: 'user_id,course_id' });
+                    }
+                } catch(dbErr) { console.warn('Cert DB save:', dbErr); }
+
+                // Generate QR code as data URL
+                const qrVerifyUrl = `${window.location.origin}${window.location.pathname}?verify=${certNumber}`;
+                const qrDataUrl = await new Promise((resolve, reject) => {
+                    const qrDiv = document.createElement('div');
+                    qrDiv.style.display = 'none';
+                    document.body.appendChild(qrDiv);
+                    try {
+                        const qr = new QRCode(qrDiv, {
+                            text: qrVerifyUrl,
+                            width: 128,
+                            height: 128,
+                            correctLevel: QRCode.CorrectLevel.M
+                        });
+                        setTimeout(() => {
+                            const canvas = qrDiv.querySelector('canvas');
+                            const img = qrDiv.querySelector('img');
+                            let dataUrl = '';
+                            if (canvas) dataUrl = canvas.toDataURL('image/png');
+                            else if (img) dataUrl = img.src;
+                            document.body.removeChild(qrDiv);
+                            resolve(dataUrl);
+                        }, 300);
+                    } catch(e) { document.body.removeChild(qrDiv); reject(e); }
+                });
+
                 // Build certificate using jsPDF in landscape A4
                 const { jsPDF } = window.jspdf;
                 const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'landscape' });
@@ -1265,10 +1315,20 @@ async function renderCertificatePage() {
                 doc.setTextColor(100, 100, 100);
                 doc.text(dateStr, cx, sigY - 3, { align: 'center' });
 
+                // QR code bottom-left
+                try {
+                    if (qrDataUrl && qrDataUrl.startsWith('data:')) {
+                        doc.addImage(qrDataUrl, 'PNG', 16, H - 50, 32, 32);
+                        doc.setFontSize(6);
+                        doc.setTextColor(150, 150, 150);
+                        doc.text('Scan untuk verifikasi', 32, H - 16, { align: 'center' });
+                    }
+                } catch(qrErr) { console.warn('QR add error:', qrErr); }
+
                 // Certificate ID footer
                 doc.setFontSize(8);
                 doc.setTextColor(180, 180, 180);
-                doc.text('ID Sertifikat: ' + certId, cx, H - 16, { align: 'center' });
+                doc.text('No. Sertifikat: ' + certNumber, cx, H - 16, { align: 'center' });
 
                 const safeName = (currentUser.name || 'Peserta').replace(/\s+/g, '_');
                 const safeCourse = course.title.replace(/\s+/g, '_');
@@ -1705,6 +1765,8 @@ async function loadWithdrawHistory() {
                     <tr style="background:#1e6b3b; color:white;">
                         <th>Tanggal</th>
                         <th>Jumlah</th>
+                        <th>Fee</th>
+                        <th>Diterima</th>
                         <th>Metode</th>
                         <th>No. Tujuan</th>
                         <th>Status</th>
@@ -1728,10 +1790,21 @@ async function loadWithdrawHistory() {
                 statusColor = '#f39c12';
             }
             
+            // Parse fee and received from notes field
+            let fee = 0, received = w.amount;
+            if (w.notes) {
+                let feeMatch = w.notes.match(/Fee:\s*([\d]+)/);
+                let recMatch = w.notes.match(/Diterima:\s*([\d]+)/);
+                if (feeMatch) fee = parseInt(feeMatch[1]);
+                if (recMatch) received = parseInt(recMatch[1]);
+            }
+            
             html += `
                 <tr>
-                    <td>${new Date(w.created_at).toLocaleDateString('id-ID')} ${new Date(w.created_at).toLocaleTimeString('id-ID')}</td>
+                    <td>${new Date(w.created_at).toLocaleDateString('id-ID')} ${new Date(w.created_at).toLocaleTimeString('id-ID', {hour:'2-digit',minute:'2-digit'})}</td>
                     <td>${formatRupiah(w.amount)}</td>
+                    <td style="color:#e74c3c;">${formatRupiah(fee)}</td>
+                    <td style="color:#27ae60;font-weight:bold;">${formatRupiah(received)}</td>
                     <td>${w.bank_name ? w.bank_name.toUpperCase() : '-'}</td>
                     <td>${w.bank_account || '-'}</td>
                     <td style="color:${statusColor}; font-weight:bold;">${statusText}</td>
@@ -2001,15 +2074,18 @@ async function loadTransferHistory() {
     
     container.innerHTML = `
         <table class="report-table">
-            <thead><tr style="background:#1e6b3b; color:white;"><th>Tanggal</th><th>Tipe</th><th>Nama</th><th>Jumlah</th><th>Catatan</th></tr></thead>
+            <thead><tr style="background:#1e6b3b; color:white;"><th>Tanggal</th><th>Tipe</th><th>Nama</th><th>Jumlah</th><th>Status</th><th>Catatan</th></tr></thead>
             <tbody>
                 ${data.map(t => {
                     let isOutgoing = t.from_user_id === currentUser.id;
+                    let statusColor = t.status === 'success' ? '#27ae60' : t.status === 'failed' ? '#e74c3c' : '#f39c12';
+                    let statusText = t.status === 'success' ? '✅ Berhasil' : t.status === 'failed' ? '❌ Gagal' : '⏳ Proses';
                     return `<tr>
-                        <td>${new Date(t.created_at).toLocaleDateString('id-ID')}</td>
+                        <td>${new Date(t.created_at).toLocaleDateString('id-ID')} ${new Date(t.created_at).toLocaleTimeString('id-ID', {hour:'2-digit',minute:'2-digit'})}</td>
                         <td style="color:${isOutgoing ? '#e74c3c' : '#27ae60'}">${isOutgoing ? '📤 Kirim' : '📥 Terima'}</td>
-                        <td>${isOutgoing ? t.to_user_name : t.from_user_name}</td>
-                        <td style="color:${isOutgoing ? '#e74c3c' : '#27ae60'}">${isOutgoing ? '-' : '+'}${formatRupiah(t.amount)}</td>
+                        <td>${isOutgoing ? (t.to_user_name || '-') : (t.from_user_name || '-')}</td>
+                        <td style="color:${isOutgoing ? '#e74c3c' : '#27ae60'};font-weight:bold;">${isOutgoing ? '-' : '+'}${formatRupiah(t.amount)}</td>
+                        <td style="color:${statusColor};font-weight:bold;">${statusText}</td>
                         <td>${t.note || '-'}</td>
                     </tr>`;
                 }).join('')}
@@ -2119,6 +2195,7 @@ async function renderAdminDashboard() {
             <div class="tab" id="earlyBirdTab">Early Bird</div>
             <div class="tab" id="ppobMarkupTab">PPOB Markup</div>
             <div class="tab" id="practicalTab">Nilai Praktik</div>
+            <div class="tab" id="graduatedTab">🎓 Peserta Lulus</div>
         </div>
         <div id="adminContent">
             <div class="card">
@@ -2182,6 +2259,7 @@ async function renderAdminDashboard() {
     document.getElementById("earlyBirdTab").onclick = () => renderEarlyBirdSettings();
     document.getElementById("ppobMarkupTab").onclick = () => renderPPOBMarkupSettings();
     document.getElementById("practicalTab").onclick = () => renderPracticalScoresAdmin();
+    document.getElementById("graduatedTab").onclick = () => renderGraduatedStudents();
     
     // Approve User
     document.querySelectorAll(".btn-approve").forEach(btn => {
@@ -2755,7 +2833,7 @@ async function renderSalesReport() {
                 <tbody>
                     ${Object.entries(monthlyData).map(([month, data]) => `
                         <tr><td>${month}</td><td>${data.count}</td><td>${formatRupiah(data.total)}</td></tr>
-                    `).join('') || '<td><td colspan="3">Belum ada data</td></tr>'}
+                    `).join('') || '<tr><td colspan="3">Belum ada data</td></tr>'}
                 </tbody>
             </table>
         </div>
@@ -2807,6 +2885,7 @@ async function renderSalesReport() {
         URL.revokeObjectURL(a.href);
         alert("✅ Laporan penjualan diexport!");
     };
+}
 async function renderPromoManager() {
     // Ambil data promo dari database
     const { data: promos, error } = await supabaseClient
@@ -3038,7 +3117,7 @@ async function renderFinancialReport() {
             <h2>📆 PENDAPATAN PER BULAN</h2>
             <div style="overflow-x:auto;">
                 <table class="report-table">
-                    <thead><tr style="background:#1e6b3b; color:white;"><th>Bulan</th><th>Transaksi</th><th>Omzet</th><th>Pajak</th></table></thead>
+                    <thead><tr style="background:#1e6b3b; color:white;"><th>Bulan</th><th>Transaksi</th><th>Omzet</th><th>Pajak</th></tr></thead>
                     <tbody>
                         ${Object.entries(monthlyRevenue).map(([key, data]) => {
                             let tax = data.total * (taxRate / 100);
@@ -3120,6 +3199,107 @@ async function renderEarlyBirdSettings() {
         await supabaseClient.from('app_settings').upsert({ key: 'early_bird_end_date', value: document.getElementById("earlyBirdEndDate").value }, { onConflict: 'key' });
         alert("Pengaturan disimpan!"); renderEarlyBirdSettings();
     };
+}
+
+// ======================== GRADUATED STUDENTS ADMIN PANEL ========================
+async function renderGraduatedStudents() {
+    document.getElementById("adminContent").innerHTML = '<div class="card"><div class="alert-info">Memuat data peserta lulus...</div></div>';
+
+    // Load all certificates
+    const { data: certs, error } = await supabaseClient
+        .from('certificates')
+        .select('*')
+        .order('issued_at', { ascending: false });
+
+    if (error) {
+        document.getElementById("adminContent").innerHTML = `<div class="card"><div class="alert-danger">Gagal memuat data: ${error.message}</div><button id="backBtn" class="btn-back">Kembali</button></div>`;
+        document.getElementById("backBtn").onclick = () => renderAdminDashboard();
+        return;
+    }
+
+    let html = `
+        <div class="card">
+            <h2>🎓 Peserta yang Telah Lulus</h2>
+            <div class="alert-info" style="margin-bottom:15px;">
+                Total sertifikat diterbitkan: <strong>${(certs || []).length}</strong>
+            </div>
+            ${!certs || certs.length === 0 ? '<div class="alert-warning">Belum ada peserta yang lulus.</div>' : `
+            <div style="overflow-x:auto;">
+                <table class="report-table">
+                    <thead>
+                        <tr style="background:#1e6b3b; color:white;">
+                            <th>No</th>
+                            <th>Nama Peserta</th>
+                            <th>Kursus</th>
+                            <th>Nomor Sertifikat (QR)</th>
+                            <th>Nilai Akhir</th>
+                            <th>Tanggal Lulus</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${(certs || []).map((c, idx) => `
+                            <tr>
+                                <td>${idx + 1}</td>
+                                <td><strong>${escapeHtml(c.user_name || '-')}</strong></td>
+                                <td>${escapeHtml(c.course_title || '-')}</td>
+                                <td>
+                                    <code style="font-size:0.8rem; background:#f0f0f0; padding:3px 8px; border-radius:6px;">${escapeHtml(c.cert_number || '-')}</code>
+                                    <div id="qr_${idx}" style="margin-top:5px;"></div>
+                                </td>
+                                <td style="text-align:center; font-weight:bold; color:${(c.final_score||0) >= 75 ? '#27ae60' : '#e74c3c'};">${c.final_score || '-'}/100</td>
+                                <td>${c.issued_at ? new Date(c.issued_at).toLocaleDateString('id-ID', {day:'numeric',month:'long',year:'numeric'}) : '-'}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+            <button id="exportCertsBtn" class="btn-success" style="margin-top:15px;">📥 Export CSV</button>
+            `}
+            <button id="backBtn" class="btn-back" style="margin-top:15px;">Kembali</button>
+        </div>
+    `;
+
+    document.getElementById("adminContent").innerHTML = html;
+    document.getElementById("backBtn").onclick = () => renderAdminDashboard();
+
+    // Render small QR codes for each cert number
+    if (certs && certs.length > 0) {
+        certs.forEach((c, idx) => {
+            const el = document.getElementById(`qr_${idx}`);
+            if (el && c.cert_number) {
+                try {
+                    new QRCode(el, {
+                        text: `${window.location.origin}${window.location.pathname}?verify=${c.cert_number}`,
+                        width: 64,
+                        height: 64,
+                        correctLevel: QRCode.CorrectLevel.M
+                    });
+                } catch(e) { console.warn('QR admin:', e); }
+            }
+        });
+    }
+
+    if (document.getElementById("exportCertsBtn")) {
+        document.getElementById("exportCertsBtn").onclick = () => {
+            let rows = [["No","Nama","Kursus","Nomor Sertifikat","Nilai","Tanggal"]];
+            (certs || []).forEach((c, idx) => {
+                rows.push([
+                    idx + 1,
+                    c.user_name || '-',
+                    c.course_title || '-',
+                    c.cert_number || '-',
+                    c.final_score || '-',
+                    c.issued_at ? new Date(c.issued_at).toLocaleDateString('id-ID') : '-'
+                ]);
+            });
+            let csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+            let blob = new Blob(["\uFEFF" + csv], { type: "text/csv" });
+            let a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.download = `peserta_lulus_${new Date().toISOString().slice(0,10)}.csv`;
+            a.click();
+        };
+    }
 }
 
 // ======================== ROUTING ========================
