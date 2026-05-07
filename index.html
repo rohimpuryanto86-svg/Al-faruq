@@ -1177,15 +1177,40 @@ async function renderCertificatePage() {
 
 // ======================== RENDER REPORT PAGE ========================
 async function renderReportPage() {
-    // Refresh data dari database
+    // Fetch both quiz scores and practical scores
     const { data: scoresData } = await supabaseClient
         .from('scores')
         .select('*')
         .eq('user_id', currentUser.id);
     currentUser.scores = scoresData || [];
-    
+
+    const { data: practicalData } = await supabaseClient
+        .from('practical_scores')
+        .select('*')
+        .eq('user_id', currentUser.id);
+    const practicalList = practicalData || [];
+
+    // Build merged rows per lesson
+    const allRows = [];
+    for (const course of coursesData) {
+        const courseQuiz = currentUser.scores.filter(s => s.course_id === course.id);
+        const coursePractical = practicalList.filter(s => s.course_id === course.id);
+        const lessonIds = [...new Set([...courseQuiz.map(s => s.lesson_id), ...coursePractical.map(s => s.lesson_id)])];
+        for (const lessonId of lessonIds) {
+            const lesson = course?.lessons[lessonId];
+            const quiz = courseQuiz.find(s => s.lesson_id === lessonId);
+            const practical = coursePractical.find(s => s.lesson_id === lessonId);
+            allRows.push({
+                courseTitle: course?.title || '-',
+                lessonTitle: lesson?.title || `Materi ${lessonId + 1}`,
+                quizScore: quiz?.quiz_score != null ? quiz.quiz_score : '-',
+                practicalScore: practical?.score != null ? practical.score : '-'
+            });
+        }
+    }
+
     let earned = currentUser.earnedBadges || [];
-    
+
     let html = `
         <div class="tabs">
             <div class="tab" id="backToDash">Kembali</div>
@@ -1209,19 +1234,19 @@ async function renderReportPage() {
             <table class="report-table">
                 <thead>
                     <tr style="background:#1e6b3b; color:white;">
-                        <th>Kursus</th><th>Materi</th><th>Nilai Quiz</th>
+                        <th>Kursus</th><th>Materi</th><th>Nilai Quiz</th><th>Nilai Praktik</th>
                     </tr>
                 </thead>
                 <tbody>
-                    ${currentUser.scores.map(s => {
-                        let course = coursesData.find(c => c.id === s.course_id);
-                        let lesson = course?.lessons[s.lesson_id];
-                        return `<tr>
-                            <td>${course?.title || '-'}</td>
-                            <td>${lesson?.title || '-'}</td>
-                            <td>${s.quiz_score || '-'}</td>
-                        </tr>`;
-                    }).join('') || '<tr><td colspan="3">Belum ada nilai</td></tr>'}
+                    ${allRows.length > 0
+                        ? allRows.map(r => `<tr>
+                            <td>${r.courseTitle}</td>
+                            <td>${r.lessonTitle}</td>
+                            <td style="text-align:center;">${r.quizScore}</td>
+                            <td style="text-align:center;">${r.practicalScore}</td>
+                        </tr>`).join('')
+                        : '<tr><td colspan="4" style="text-align:center;color:#999;">Belum ada nilai</td></tr>'
+                    }
                 </tbody>
             </table>
             <button id="downloadReportBtn" class="btn-success" style="margin-top:15px;">Download Rapor PDF</button>
