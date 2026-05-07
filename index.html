@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <title>ALFARUQ ONLINE COURSE - Belajar Islam Dalam Genggaman</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
@@ -1227,52 +1228,87 @@ async function renderReportPage() {
         btn.disabled = true;
         btn.textContent = "Menyiapkan PDF...";
 
-        const { data: freshScores } = await supabaseClient
-            .from('scores').select('*').eq('user_id', currentUser.id);
-        currentUser.scores = freshScores || [];
-
-        const rowsHtml = currentUser.scores.length > 0
-            ? currentUser.scores.map(s => {
-                let course = coursesData.find(c => c.id === s.course_id);
-                let lesson = course?.lessons[s.lesson_id];
-                return '<tr>' +
-                    '<td style="border:1px solid #ddd;padding:8px;">' + (course ? course.title : '-') + '</td>' +
-                    '<td style="border:1px solid #ddd;padding:8px;">' + (lesson ? lesson.title : '-') + '</td>' +
-                    '<td style="border:1px solid #ddd;padding:8px;">' + (s.quiz_score != null ? s.quiz_score : '-') + '</td>' +
-                    '</tr>';
-            }).join('')
-            : '<tr><td colspan="3" style="border:1px solid #ddd;padding:8px;text-align:center;color:#999;">Belum ada nilai</td></tr>';
-
-        const wrapper = document.createElement('div');
-        wrapper.style.cssText = 'position:fixed;top:0;left:0;z-index:9999;background:white;width:750px;padding:40px;font-family:Arial,sans-serif;color:#333;';
-        wrapper.innerHTML =
-            '<h1 style="text-align:center;color:#1e6b3b;font-size:22pt;margin:0 0 4px 0;">ALFARUQ ONLINE COURSE</h1>' +
-            '<h2 style="text-align:center;font-size:13pt;font-weight:normal;margin:0 0 24px 0;color:#555;">Laporan Hasil Belajar</h2>' +
-            '<p style="margin:4px 0;"><strong>Nama:</strong> ' + escapeHtml(currentUser.name || '-') + '</p>' +
-            '<p style="margin:4px 0;"><strong>Tanggal:</strong> ' + new Date().toLocaleDateString('id-ID') + '</p>' +
-            '<br>' +
-            '<table style="width:100%;border-collapse:collapse;margin-top:8px;">' +
-                '<thead><tr style="background:#1e6b3b;color:white;">' +
-                    '<th style="border:1px solid #ddd;padding:8px;text-align:left;">Kursus</th>' +
-                    '<th style="border:1px solid #ddd;padding:8px;text-align:left;">Materi</th>' +
-                    '<th style="border:1px solid #ddd;padding:8px;text-align:left;">Nilai</th>' +
-                '</tr></thead>' +
-                '<tbody>' + rowsHtml + '</tbody>' +
-            '</table>' +
-            '<p style="margin-top:40px;font-size:9pt;color:#aaa;text-align:center;">Dicetak oleh sistem ALFARUQ ONLINE COURSE</p>';
-
-        document.body.appendChild(wrapper);
-
         try {
-            await html2pdf().set({
-                margin: 10,
-                filename: 'Rapor_' + (currentUser.name || 'Peserta').replace(/\s+/g, '_') + '.pdf',
-                image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false },
-                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-            }).from(wrapper).save();
+            // Re-fetch fresh scores from DB
+            const { data: freshScores } = await supabaseClient
+                .from('scores').select('*').eq('user_id', currentUser.id);
+            currentUser.scores = freshScores || [];
+
+            // Use jsPDF directly - no html2canvas, no screenshots, works on all mobile browsers
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+
+            const green = [30, 107, 59];
+            const pageW = doc.internal.pageSize.getWidth();
+
+            // Header
+            doc.setFontSize(18);
+            doc.setTextColor(...green);
+            doc.setFont('helvetica', 'bold');
+            doc.text('ALFARUQ ONLINE COURSE', pageW / 2, 22, { align: 'center' });
+
+            doc.setFontSize(11);
+            doc.setTextColor(80, 80, 80);
+            doc.setFont('helvetica', 'normal');
+            doc.text('Laporan Hasil Belajar', pageW / 2, 30, { align: 'center' });
+
+            // Divider line
+            doc.setDrawColor(...green);
+            doc.setLineWidth(0.5);
+            doc.line(14, 34, pageW - 14, 34);
+
+            // Student info
+            doc.setFontSize(10);
+            doc.setTextColor(50, 50, 50);
+            doc.text('Nama    : ' + (currentUser.name || '-'), 14, 42);
+            doc.text('Tanggal : ' + new Date().toLocaleDateString('id-ID'), 14, 48);
+
+            // Table of scores
+            const tableRows = currentUser.scores.length > 0
+                ? currentUser.scores.map(s => {
+                    const course = coursesData.find(c => c.id === s.course_id);
+                    const lesson = course?.lessons[s.lesson_id];
+                    return [
+                        course?.title || '-',
+                        lesson?.title || '-',
+                        s.quiz_score != null ? String(s.quiz_score) : '-'
+                    ];
+                })
+                : [['Belum ada nilai', '', '']];
+
+            doc.autoTable({
+                startY: 55,
+                head: [['Kursus', 'Materi', 'Nilai']],
+                body: tableRows,
+                headStyles: {
+                    fillColor: green,
+                    textColor: 255,
+                    fontStyle: 'bold',
+                    fontSize: 10
+                },
+                bodyStyles: { fontSize: 9, textColor: [50, 50, 50] },
+                alternateRowStyles: { fillColor: [245, 250, 247] },
+                columnStyles: {
+                    0: { cellWidth: 65 },
+                    1: { cellWidth: 90 },
+                    2: { cellWidth: 25, halign: 'center' }
+                },
+                margin: { left: 14, right: 14 }
+            });
+
+            // Footer
+            const finalY = doc.lastAutoTable.finalY + 10;
+            doc.setFontSize(8);
+            doc.setTextColor(160, 160, 160);
+            doc.text('Dicetak oleh sistem ALFARUQ ONLINE COURSE', pageW / 2, finalY, { align: 'center' });
+
+            const safeName = (currentUser.name || 'Peserta').replace(/\s+/g, '_');
+            doc.save('Rapor_' + safeName + '.pdf');
+
+        } catch (err) {
+            console.error('PDF error:', err);
+            alert('Gagal membuat PDF: ' + err.message);
         } finally {
-            document.body.removeChild(wrapper);
             btn.disabled = false;
             btn.textContent = "Download Rapor PDF";
         }
