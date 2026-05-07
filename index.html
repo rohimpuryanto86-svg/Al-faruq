@@ -631,40 +631,70 @@ function renderForgotPassword() {
         else alert("Cek email Anda untuk link reset password.");
     };
 }
-
 async function renderUserDashboard() {
     await checkAndUpdateReferralStatus();
-    await checkAndAwardBadges();
     let overall = getOverallProgress();
-    let html = `<div class="tabs"><div class="tab active">Dashboard</div><div class="tab" id="coursesTab">Beli Kursus</div>
-        <div class="tab" id="progressTab">Progress</div><div class="tab" id="walletTab">Wallet</div>
-        <div class="tab" id="ppobTab">PPOB</div><div class="tab" id="certificateTab">Sertifikat</div>
-        <div class="tab" id="reportTab">Rapor & Badge</div><div class="tab" id="resellerTab">Reseller</div>
-        <div class="tab" id="guideTab">📘 Panduan</div>
-        <div class="tab" id="logoutTab">Logout</div></div>
-        <div class="card"><h2>Selamat Datang, ${escapeHtml(currentUser.name)}!</h2>
-        <p>WhatsApp: ${currentUser.phone || settings.defaultWhatsappNumber}</p>
-        <p>Saldo Wallet: <strong>${formatRupiah(currentUser.walletBalance)}</strong></p>
-        <p>Kode Referral: <code>${currentUser.referralCode}</code> <button onclick="copyReferral()" class="btn-copy">Salin Link</button></p>
-        <div class="stats-grid"><div class="stat-card"><div class="stat-number">${overall.completed}</div><div>Materi Selesai</div></div>
-        <div class="stat-card"><div class="stat-number">${currentUser.purchasedCourses?.length || 0}</div><div>Kursus Dimiliki</div></div>
-        <div class="stat-card"><div class="stat-number">${currentUser.isBundle ? 'Ya' : 'Tidak'}</div><div>Bundle</div></div></div>
-        <div class="progress-bar"><div class="progress-fill" style="width:${overall.percent}%;"></div></div>
-        <div class="alert-info" style="margin-top:10px;"> 📌 Komisi 20-50% akan masuk ke wallet Anda JIKA referral membeli KURSUS.</div>
-        <p style="text-align:center;">Progress Belajar: ${Math.round(overall.percent)}%</p></div>`;
-    if (currentUser.canRefer) html += `<div class="card" style="background:#d4edda;"><h3>Program Reseller - AKTIF!</h3><p>Kode referral Anda sudah aktif!</p><button onclick="copyReferral()" class="btn-copy">Salin Kode</button></div>`;
-    else html += `<div class="card" style="background:#fff3cd;"><h3>Program Reseller - Belum Aktif</h3><p>Selesaikan 1 kursus penuh dengan nilai minimal 7.</p></div>`;
+    
+    let html = `
+        <div class="tabs">
+            <div class="tab active">Dashboard</div>
+            <div class="tab" id="coursesTab">Beli Kursus</div>
+            <div class="tab" id="progressTab">Progress</div>
+            <div class="tab" id="walletTab">Wallet</div>
+            <div class="tab" id="ppobTab">PPOB</div>
+            <div class="tab" id="certificateTab">Sertifikat</div>
+            <div class="tab" id="reportTab">Rapor & Badge</div>
+            <div class="tab" id="resellerTab">Reseller</div>
+            <div class="tab" id="guideTab">📘 Panduan</div>
+            <div class="tab" id="logoutTab">Logout</div>
+        </div>
+        
+        <div class="card">
+            <h2>Selamat Datang, ${escapeHtml(currentUser.name)}!</h2>
+            <p>WhatsApp: ${currentUser.phone || settings.defaultWhatsappNumber}</p>
+            <p>Saldo Wallet: <strong style="color:#27ae60;">${formatRupiah(currentUser.walletBalance)}</strong></p>
+            
+            ${currentUser.canRefer ? `
+                <div class="alert-success" style="padding:10px; border-radius:12px; margin:10px 0;">
+                    🎉 <strong>Reseller AKTIF!</strong> Kode referral: <code>${currentUser.referralCode}</code> 
+                    <button onclick="copyReferral()" class="btn-copy">Salin Link</button>
+                </div>
+            ` : `
+                <div class="alert-warning" style="padding:10px; border-radius:12px; margin:10px 0;">
+                    🔒 <strong>Reseller Belum Aktif</strong><br>
+                    Selesaikan 1 kursus penuh dengan nilai minimal 70 untuk mendapatkan kode referral.
+                </div>
+            `}
+            
+            <div class="stats-grid">
+                <div class="stat-card"><div class="stat-number">${overall.completed}</div><div>Materi Selesai</div></div>
+                <div class="stat-card"><div class="stat-number">${currentUser.purchasedCourses?.length || 0}</div><div>Kursus Dimiliki</div></div>
+                <div class="stat-card"><div class="stat-number">${currentUser.isBundle ? 'Ya' : 'Tidak'}</div><div>Bundle</div></div>
+            </div>
+            
+            <div class="progress-bar"><div class="progress-fill" style="width:${overall.percent}%;"></div></div>
+            <p style="text-align:center;">Progress Belajar: ${Math.round(overall.percent)}%</p>
+        </div>
+    `;
+    
     document.getElementById("appRoot").innerHTML = html;
+    
+    // Event listeners
     document.getElementById("coursesTab").onclick = () => renderStorePage();
     document.getElementById("progressTab").onclick = () => renderProgressPage();
     document.getElementById("walletTab").onclick = () => renderWalletPage();
     document.getElementById("ppobTab").onclick = () => renderPPOBPage();
     document.getElementById("certificateTab").onclick = () => renderCertificatePage();
     document.getElementById("reportTab").onclick = () => renderReportPage();
-    document.getElementById("guideTab").onclick = () => renderGuidePage();
     document.getElementById("resellerTab").onclick = () => renderResellerInfo();
-    document.getElementById("logoutTab").onclick = async () => { await supabaseClient.auth.signOut(); currentUser = null; window.location.hash = "#landing"; };
+    document.getElementById("guideTab").onclick = () => renderGuidePage();
+    document.getElementById("logoutTab").onclick = async () => { 
+        await supabaseClient.auth.signOut(); 
+        currentUser = null; 
+        window.location.hash = "#landing"; 
+    };
 }
+
 async function renderStorePage() {
     let html = `<div class="tabs"><div class="tab" id="backToDash">Kembali</div><div class="tab active">Beli Kursus</div></div>
         <div class="card" style="text-align:center;"><h2>Beli Kursus dengan Wallet</h2>
