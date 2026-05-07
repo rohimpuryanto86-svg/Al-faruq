@@ -1035,142 +1035,176 @@ async function renderCertificatePage() {
     // Event download sertifikat
     document.querySelectorAll(".download-cert").forEach(btn => {
         btn.onclick = async () => {
-            let courseId = parseInt(btn.getAttribute("data-course-id"));
-            let course = coursesData.find(c => c.id === courseId);
-            
-            // Hitung nilai akhir dari database
-            let finalScore = 0;
-            let totalScore = 0;
-            let quizCount = 0;
-            
-            const { data: scores } = await supabaseClient
-                .from('scores')
-                .select('quiz_score')
-                .eq('user_id', currentUser.id)
-                .eq('course_id', course.id);
-            
-            if (scores && scores.length > 0) {
-                totalScore = scores.reduce((sum, s) => sum + (s.quiz_score || 0), 0);
-                quizCount = scores.length;
-                finalScore = Math.round(totalScore / quizCount);
+            const courseId = parseInt(btn.getAttribute("data-course-id"));
+            const course = coursesData.find(c => c.id === courseId);
+
+            btn.disabled = true;
+            btn.textContent = "Menyiapkan Sertifikat...";
+
+            try {
+                // Fetch final score from Supabase
+                const { data: scores } = await supabaseClient
+                    .from('scores')
+                    .select('quiz_score')
+                    .eq('user_id', currentUser.id)
+                    .eq('course_id', course.id);
+
+                let finalScore = 0;
+                if (scores && scores.length > 0) {
+                    const total = scores.reduce((sum, s) => sum + (s.quiz_score || 0), 0);
+                    finalScore = Math.round(total / scores.length);
+                }
+
+                const predikat = finalScore >= 90 ? 'SANGAT MEMUASKAN'
+                    : finalScore >= 75 ? 'MEMUASKAN'
+                    : finalScore >= 60 ? 'CUKUP MEMUASKAN'
+                    : 'LULUS';
+
+                const certId = currentUser.id.substring(0, 8).toUpperCase() + '-' + course.id + '-' + Date.now();
+                const dateStr = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+
+                // Build certificate using jsPDF in landscape A4
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'landscape' });
+
+                const W = doc.internal.pageSize.getWidth();   // 297mm
+                const H = doc.internal.pageSize.getHeight();  // 210mm
+                const cx = W / 2;
+
+                const green  = [30, 107, 59];
+                const orange = [230, 126, 34];
+                const dark   = [44, 62, 80];
+                const gold   = [244, 162, 97];
+
+                // Outer border (gold)
+                doc.setDrawColor(...gold);
+                doc.setLineWidth(4);
+                doc.rect(8, 8, W - 16, H - 16);
+
+                // Inner border (green thin)
+                doc.setDrawColor(...green);
+                doc.setLineWidth(1);
+                doc.rect(12, 12, W - 24, H - 24);
+
+                // Green header band
+                doc.setFillColor(...green);
+                doc.rect(12, 12, W - 24, 28, 'F');
+
+                // Header text: ALFARUQ ONLINE COURSE
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(22);
+                doc.setTextColor(255, 255, 255);
+                doc.text('ALFARUQ ONLINE COURSE', cx, 24, { align: 'center' });
+
+                doc.setFontSize(11);
+                doc.setFont('helvetica', 'normal');
+                doc.text('Lembaga Pendidikan Islam Terpercaya', cx, 33, { align: 'center' });
+
+                // SERTIFIKAT title
+                doc.setFontSize(36);
+                doc.setFont('helvetica', 'bold');
+                doc.setTextColor(...green);
+                doc.text('SERTIFIKAT', cx, 62, { align: 'center' });
+
+                doc.setFontSize(14);
+                doc.setFont('helvetica', 'normal');
+                doc.setTextColor(100, 100, 100);
+                doc.text('KELULUSAN', cx, 72, { align: 'center' });
+
+                // Divider line
+                doc.setDrawColor(...gold);
+                doc.setLineWidth(0.8);
+                doc.line(40, 77, W - 40, 77);
+
+                // "Diberikan kepada"
+                doc.setFontSize(11);
+                doc.setTextColor(100, 100, 100);
+                doc.setFont('helvetica', 'italic');
+                doc.text('Diberikan kepada', cx, 87, { align: 'center' });
+
+                // Recipient name
+                doc.setFontSize(28);
+                doc.setFont('helvetica', 'bold');
+                doc.setTextColor(...dark);
+                doc.text(currentUser.name || '-', cx, 102, { align: 'center' });
+
+                // Name underline
+                doc.setDrawColor(...dark);
+                doc.setLineWidth(0.5);
+                const nameW = doc.getTextWidth(currentUser.name || '-');
+                doc.line(cx - nameW/2, 105, cx + nameW/2, 105);
+
+                // "Atas keberhasilannya menyelesaikan"
+                doc.setFontSize(11);
+                doc.setFont('helvetica', 'normal');
+                doc.setTextColor(80, 80, 80);
+                doc.text('Atas keberhasilannya menyelesaikan program kursus', cx, 115, { align: 'center' });
+
+                // Course name
+                doc.setFontSize(18);
+                doc.setFont('helvetica', 'bold');
+                doc.setTextColor(...orange);
+                doc.text(course.title, cx, 126, { align: 'center' });
+
+                // Predikat & score
+                doc.setFontSize(12);
+                doc.setFont('helvetica', 'normal');
+                doc.setTextColor(80, 80, 80);
+                doc.text('dengan predikat', cx, 136, { align: 'center' });
+
+                doc.setFontSize(16);
+                doc.setFont('helvetica', 'bold');
+                doc.setTextColor(...green);
+                doc.text(predikat, cx, 145, { align: 'center' });
+
+                doc.setFontSize(11);
+                doc.setFont('helvetica', 'normal');
+                doc.setTextColor(80, 80, 80);
+                doc.text('Nilai Akhir: ' + finalScore + ' / 100', cx, 153, { align: 'center' });
+
+                // Gold divider
+                doc.setDrawColor(...gold);
+                doc.setLineWidth(0.8);
+                doc.line(40, 158, W - 40, 158);
+
+                // Signature blocks
+                const sig1x = 70, sig2x = W - 70;
+                const sigY = 185;
+
+                // Signature lines
+                doc.setDrawColor(...dark);
+                doc.setLineWidth(0.5);
+                doc.line(sig1x - 28, sigY - 6, sig1x + 28, sigY - 6);
+                doc.line(sig2x - 28, sigY - 6, sig2x + 28, sigY - 6);
+
+                doc.setFontSize(11);
+                doc.setFont('helvetica', 'bold');
+                doc.setTextColor(...dark);
+                doc.text('Pengajar', sig1x, sigY, { align: 'center' });
+                doc.text('Direktur', sig2x, sigY, { align: 'center' });
+
+                // Date center
+                doc.setFontSize(10);
+                doc.setFont('helvetica', 'normal');
+                doc.setTextColor(100, 100, 100);
+                doc.text(dateStr, cx, sigY - 3, { align: 'center' });
+
+                // Certificate ID footer
+                doc.setFontSize(8);
+                doc.setTextColor(180, 180, 180);
+                doc.text('ID Sertifikat: ' + certId, cx, H - 16, { align: 'center' });
+
+                const safeName = (currentUser.name || 'Peserta').replace(/\s+/g, '_');
+                const safeCourse = course.title.replace(/\s+/g, '_');
+                doc.save('Sertifikat_' + safeName + '_' + safeCourse + '.pdf');
+
+            } catch (err) {
+                console.error('Certificate error:', err);
+                alert('Gagal membuat sertifikat: ' + err.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = "Download Sertifikat PDF (A4)";
             }
-            
-            // Buat HTML sertifikat untuk print
-            const certHtml = `
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <meta charset="UTF-8">
-                    <title>Sertifikat - ${course.title}</title>
-                    <style>
-                        * { margin: 0; padding: 0; box-sizing: border-box; }
-                        body {
-                            background: white;
-                            font-family: 'Times New Roman', Times, serif;
-                            display: flex;
-                            justify-content: center;
-                            align-items: center;
-                            min-height: 100vh;
-                        }
-                        .certificate {
-                            width: 210mm;
-                            min-height: 297mm;
-                            padding: 20mm;
-                            background: white;
-                            border: 2px solid #f4a261;
-                            position: relative;
-                        }
-                        .certificate h1 {
-                            text-align: center;
-                            font-size: 32pt;
-                            color: #1e6b3b;
-                            margin: 30px 0;
-                        }
-                        .certificate h2 {
-                            text-align: center;
-                            font-size: 18pt;
-                            color: #333;
-                        }
-                        .certificate .recipient {
-                            text-align: center;
-                            font-size: 28pt;
-                            font-weight: bold;
-                            color: #2c3e50;
-                            margin: 40px 0;
-                        }
-                        .certificate .course-name {
-                            text-align: center;
-                            font-size: 20pt;
-                            color: #e67e22;
-                            margin: 20px 0;
-                        }
-                        .certificate .score {
-                            text-align: center;
-                            font-size: 14pt;
-                            margin: 20px 0;
-                        }
-                        .certificate .footer {
-                            margin-top: 50px;
-                            display: flex;
-                            justify-content: space-between;
-                        }
-                        .certificate .signature {
-                            text-align: center;
-                            width: 45%;
-                        }
-                        .certificate .signature-line {
-                            border-top: 1px solid #333;
-                            width: 80%;
-                            margin: 30px auto 10px;
-                        }
-                        .certificate .id {
-                            text-align: center;
-                            font-size: 9pt;
-                            color: #999;
-                            margin-top: 30px;
-                        }
-                        @media print {
-                            body { margin: 0; padding: 0; }
-                            .certificate { box-shadow: none; }
-                        }
-                    </style>
-                </head>
-                <body>
-                    <div class="certificate">
-                        <h1>ALFARUQ</h1>
-                        <h2>Online Course</h2>
-                        <div class="recipient">${escapeHtml(currentUser.name)}</div>
-                        <div class="course-name">${escapeHtml(course.title)}</div>
-                        <p style="text-align:center;">Telah menyelesaikan program dengan predikat</p>
-                        <p style="text-align:center; font-size:16pt; font-weight:bold; color:#27ae60;">SANGAT MEMUASKAN</p>
-                        <div class="score">Nilai Akhir: ${finalScore} / 100</div>
-                        <div class="footer">
-                            <div class="signature">
-                                <div class="signature-line"></div>
-                                Pengajar
-                            </div>
-                            <div class="signature">
-                                <div class="signature-line"></div>
-                                Direktur
-                            </div>
-                        </div>
-                        <div class="id">ID Sertifikat: ${currentUser.id}_${course.id}_${Date.now()}</div>
-                    </div>
-                    <script>
-                        window.onload = function() {
-                            setTimeout(function() {
-                                window.print();
-                                setTimeout(function() { window.close(); }, 500);
-                            }, 500);
-                        };
-                    <\/script>
-                </body>
-                </html>
-            `;
-            
-            const printWindow = window.open('', '_blank');
-            printWindow.document.write(certHtml);
-            printWindow.document.close();
         };
     });
 }
