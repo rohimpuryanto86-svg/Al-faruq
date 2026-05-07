@@ -445,10 +445,11 @@ async function checkAndUpdateReferralStatus() {
 }
 
 async function checkAndAwardBadges() {
-    let earned = currentUser.earnedBadges ? [...currentUser.earnedBadges] : [];
-    let newBadges = [];
+    // Always recalculate from scratch — never trust cached DB badges
+    // This ensures wrongly awarded badges (e.g. Master from old bug) get corrected
+    let previousEarned = currentUser.earnedBadges ? [...currentUser.earnedBadges] : [];
+    let correctEarned = [];
 
-    // Count total completed lessons across all owned courses
     let totalCompleted = 0;
     let ownedCourses = coursesData.filter(c => isCourseOwned(c.id));
     let completedCourses = 0;
@@ -460,32 +461,35 @@ async function checkAndAwardBadges() {
         if (totalLessons > 0 && completed.length === totalLessons) completedCourses++;
     }
 
-    let allCoursesCompleted = completedCourses === ownedCourses.length && ownedCourses.length > 0;
+    // Master requires ALL owned courses completed AND must own more than 1
+    let allCoursesCompleted = completedCourses === ownedCourses.length && ownedCourses.length > 1;
 
-    // Award badges based on default badge requirements
-    // Badge IDs from badgesData defaults: 1=Pemula(1 materi), 2=Semangat(5 materi), 3=Sarjana(1 kursus), 4=Master(semua kursus)
     for (const badge of badgesData) {
-        if (earned.includes(badge.id)) continue; // already earned
-        let shouldAward = false;
-        // Match by badge name or id to determine condition
+        let shouldEarn = false;
         let req = (badge.requirement || '').toLowerCase();
         let name = (badge.name || '').toLowerCase();
         if (badge.id === 1 || name === 'pemula' || req.includes('1 materi')) {
-            shouldAward = totalCompleted >= 1;
+            shouldEarn = totalCompleted >= 1;
         } else if (badge.id === 2 || name === 'semangat' || req.includes('5 materi')) {
-            shouldAward = totalCompleted >= 5;
+            shouldEarn = totalCompleted >= 5;
         } else if (badge.id === 3 || name === 'sarjana' || req.includes('1 kursus')) {
-            shouldAward = completedCourses >= 1;
+            shouldEarn = completedCourses >= 1;
         } else if (badge.id === 4 || name === 'master' || req.includes('semua kursus')) {
-            shouldAward = allCoursesCompleted && ownedCourses.length > 1;
+            shouldEarn = allCoursesCompleted;
         }
-        if (shouldAward) { earned.push(badge.id); newBadges.push(badge); }
+        if (shouldEarn) correctEarned.push(badge.id);
+    }
+
+    // Find newly earned badges (not in previous list)
+    let newBadges = badgesData.filter(b => correctEarned.includes(b.id) && !previousEarned.includes(b.id));
+
+    // Always save the corrected list back to DB (fixes wrongly awarded badges)
+    if (JSON.stringify(correctEarned.sort()) !== JSON.stringify(previousEarned.sort())) {
+        currentUser.earnedBadges = correctEarned;
+        await supabaseClient.from('profiles').update({ earned_badges: correctEarned }).eq('user_id', currentUser.id);
     }
 
     if (newBadges.length > 0) {
-        currentUser.earnedBadges = earned;
-        await supabaseClient.from('profiles').update({ earned_badges: earned }).eq('user_id', currentUser.id);
-        // Show badge notification
         let badgeNames = newBadges.map(b => `${b.icon || '🏅'} ${b.name}`).join(', ');
         alert(`🎉 Selamat! Kamu mendapat badge baru: ${badgeNames}`);
     }
@@ -802,6 +806,7 @@ function renderQuizPage() {
             let completed = currentUser.completedLessons[currentCourseForUser.id] || [];
             if (!completed.includes(selectedLessonIndex)) { completed.push(selectedLessonIndex); currentUser.completedLessons[currentCourseForUser.id] = completed;
             await supabaseClient.from('user_progress').upsert({ user_id: currentUser.id, course_id: currentCourseForUser.id, completed_lessons: completed }, { onConflict: 'user_id, course_id' }); }
+            await checkAndUpdateReferralStatus();
             await checkAndUpdateReferralStatus();
             await checkAndAwardBadges();
             document.getElementById("quizResult").innerHTML = `<div class="alert-success">✅ Lulus! Nilai: ${score * 10}/100</div>`;
@@ -1248,35 +1253,50 @@ async function renderReportPage() {
             doc.text('Nama    : ' + (currentUser.name || '-'), 14, 42);
             doc.text('Tanggal : ' + new Date().toLocaleDateString('id-ID'), 14, 48);
 
-            const tableRows = currentUser.scores.length > 0
-                ? currentUser.scores.map(s => {
-                    const course = coursesData.find(c => c.id === s.course_id);
-                    const lesson = course?.lessons[s.lesson_id];
-                    return [course?.title || '-', lesson?.title || '-', s.quiz_score != null ? String(s.quiz_score) : '-'];
-                })
-                : [['Belum ada nilai', '', '']];
+            // Fetch practical scores too
+            const { data: practicalScores } = await supabaseClient
+                .from('practical_scores')
+                .select('*')
+                .eq('user_id', currentUser.id);
+            const practicalList = practicalScores || [];
 
-            // Di dalam renderReportPage(), tambahkan kolom Nilai Praktik
-const { data: practicalScores } = await supabaseClient
-    .from('practical_scores')
-    .select('*')
-    .eq('user_id', currentUser.id);
+            // Build table rows merging quiz scores + practical scores per lesson
+            const allLessons = [];
+            for (const course of coursesData) {
+                if (!currentUser.scores.some(s => s.course_id === course.id)) continue;
+                const courseQuizScores = currentUser.scores.filter(s => s.course_id === course.id);
+                const coursePracticalScores = practicalList.filter(s => s.course_id === course.id);
+                const lessonIds = [...new Set([
+                    ...courseQuizScores.map(s => s.lesson_id),
+                    ...coursePracticalScores.map(s => s.lesson_id)
+                ])];
+                for (const lessonId of lessonIds) {
+                    const lesson = course?.lessons[lessonId];
+                    const quiz = courseQuizScores.find(s => s.lesson_id === lessonId);
+                    const practical = coursePracticalScores.find(s => s.lesson_id === lessonId);
+                    allLessons.push([
+                        course?.title || '-',
+                        lesson?.title || `Materi ${lessonId + 1}`,
+                        quiz?.quiz_score != null ? String(quiz.quiz_score) : '-',
+                        practical?.score != null ? String(practical.score) : '-'
+                    ]);
+                }
+            }
+            const tableRows = allLessons.length > 0 ? allLessons : [['Belum ada nilai', '', '', '']];
 
-// Tampilkan di tabel rapor
-<th>Nilai Quiz</th>
-<th>Nilai Praktik</th>
-
-// Dan di isi tabel
-<td>${s.quiz_score || '-'}</td>
-<td>${practicalScore?.score || '-'}</td>
             doc.autoTable({
                 startY: 55,
-                head: [['Kursus', 'Materi', 'Nilai']],
+                head: [['Kursus', 'Materi', 'Nilai Quiz', 'Nilai Praktik']],
                 body: tableRows,
                 headStyles: { fillColor: green, textColor: 255, fontStyle: 'bold', fontSize: 10 },
                 bodyStyles: { fontSize: 9, textColor: [50, 50, 50] },
                 alternateRowStyles: { fillColor: [245, 250, 247] },
-                columnStyles: { 0: { cellWidth: 65 }, 1: { cellWidth: 90 }, 2: { cellWidth: 25, halign: 'center' } },
+                columnStyles: {
+                    0: { cellWidth: 55 },
+                    1: { cellWidth: 75 },
+                    2: { cellWidth: 30, halign: 'center' },
+                    3: { cellWidth: 30, halign: 'center' }
+                },
                 margin: { left: 14, right: 14 }
             });
 
