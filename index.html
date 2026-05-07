@@ -1676,38 +1676,76 @@ async function renderWalletPage() {
         }
     };
 }
-
 async function loadWithdrawHistory() {
-    const { data, error } = await supabaseClient
-        .from('withdraw_requests')
-        .select('*')
-        .eq('user_id', currentUser.id)
-        .eq('type', 'withdraw')
-        .order('created_at', { ascending: false });
-    
     const container = document.getElementById("withdrawHistory");
     if (!container) return;
     
-    if (!data || data.length === 0) {
-        container.innerHTML = '<div class="alert-info">Belum ada riwayat withdraw.</div>';
-        return;
-    }
-    
-    container.innerHTML = `
-        <table class="report-table">
-            <thead><tr style="background:#1e6b3b; color:white;"><th>Tanggal</th><th>Jumlah</th><th>Metode</th><th>Status</th></tr></thead>
-            <tbody>
-                ${data.map(w => `
-                    <tr>
-                        <td>${new Date(w.created_at).toLocaleDateString('id-ID')}</td>
-                        <td>${formatRupiah(w.amount)}</td>
-                        <td>${w.bank_name?.toUpperCase() || '-'}</td>
-                        <td><span style="background:${w.status === 'approved' ? '#27ae60' : w.status === 'rejected' ? '#e74c3c' : '#f39c12'}; color:white; padding:3px 8px; border-radius:20px;">${w.status === 'approved' ? 'Disetujui' : w.status === 'rejected' ? 'Ditolak' : 'Pending'}</span></td>
+    try {
+        const { data, error } = await supabaseClient
+            .from('withdraw_requests')
+            .select('*')
+            .eq('user_id', currentUser.id)
+            .eq('type', 'withdraw')
+            .order('created_at', { ascending: false });
+        
+        if (error) {
+            console.error("Error load withdraw history:", error);
+            container.innerHTML = '<div class="alert-danger">Gagal memuat riwayat</div>';
+            return;
+        }
+        
+        if (!data || data.length === 0) {
+            container.innerHTML = '<div class="alert-info">Belum ada riwayat withdraw.</div>';
+            return;
+        }
+        
+        let html = `
+            <table class="report-table">
+                <thead>
+                    <tr style="background:#1e6b3b; color:white;">
+                        <th>Tanggal</th>
+                        <th>Jumlah</th>
+                        <th>Metode</th>
+                        <th>No. Tujuan</th>
+                        <th>Status</th>
                     </tr>
-                `).join('')}
-            </tbody>
-        </table>
-    `;
+                </thead>
+                <tbody>
+        `;
+        
+        for (const w of data) {
+            let statusText = '';
+            let statusColor = '';
+            
+            if (w.status === 'approved') {
+                statusText = '✅ Disetujui';
+                statusColor = '#27ae60';
+            } else if (w.status === 'rejected') {
+                statusText = '❌ Ditolak';
+                statusColor = '#e74c3c';
+            } else {
+                statusText = '⏳ Pending';
+                statusColor = '#f39c12';
+            }
+            
+            html += `
+                <tr>
+                    <td>${new Date(w.created_at).toLocaleDateString('id-ID')} ${new Date(w.created_at).toLocaleTimeString('id-ID')}</td>
+                    <td>${formatRupiah(w.amount)}</td>
+                    <td>${w.bank_name ? w.bank_name.toUpperCase() : '-'}</td>
+                    <td>${w.bank_account || '-'}</td>
+                    <td style="color:${statusColor}; font-weight:bold;">${statusText}</td>
+                </tr>
+            `;
+        }
+        
+        html += `</tbody></table>`;
+        container.innerHTML = html;
+        
+    } catch (err) {
+        console.error("Error:", err);
+        container.innerHTML = '<div class="alert-danger">Error: ' + err.message + '</div>';
+    }
 }
     // ======================== TRANSFER KE SESAMA USER ========================
 
@@ -2769,15 +2807,157 @@ async function renderSalesReport() {
         URL.revokeObjectURL(a.href);
         alert("✅ Laporan penjualan diexport!");
     };
+async function renderPromoManager() {
+    // Ambil data promo dari database
+    const { data: promos, error } = await supabaseClient
+        .from('promo_codes')
+        .select('*')
+        .order('created_at', { ascending: false });
+    
+    if (error) {
+        console.error("Error load promos:", error);
+    }
+    
+    let html = `
+        <div class="card">
+            <h2>🏷️ Manajemen Diskon / Promo</h2>
+            <div class="alert-info">
+                <strong>Petunjuk:</strong> Buat kode promo untuk diskon pembelian kursus.
+            </div>
+            
+            <form id="addPromoForm">
+                <div class="form-group">
+                    <label>Kode Promo</label>
+                    <input type="text" id="promoCode" required placeholder="Contoh: HEMAT20">
+                </div>
+                <div class="form-group">
+                    <label>Diskon (%)</label>
+                    <input type="number" id="promoDiscount" min="0" max="100" required placeholder="10">
+                </div>
+                <div class="form-group">
+                    <label>Berlaku Sampai (Opsional)</label>
+                    <input type="datetime-local" id="promoValidUntil">
+                </div>
+                <button type="submit" class="btn-success">➕ Tambah Promo</button>
+            </form>
+        </div>
+        
+        <div class="card">
+            <h2>📋 Daftar Kode Promo</h2>
+            <div id="promoList">
+                ${!promos || promos.length === 0 ? 
+                    '<div class="alert-info">Belum ada kode promo.</div>' : 
+                    `<table class="report-table">
+                        <thead><tr style="background:#1e6b3b; color:white;">
+                            <th>Kode</th><th>Diskon</th><th>Status</th><th>Berlaku Sampai</th><th>Aksi</th>
+                        </tr></thead>
+                        <tbody>
+                            ${promos.map(p => `
+                                <tr>
+                                    <td><code>${p.code}</code></td>
+                                    <td>${p.discount_percent}%</td>
+                                    <td style="color:${p.is_active ? '#27ae60' : '#e74c3c'}">${p.is_active ? 'Aktif' : 'Nonaktif'}</td>
+                                    <td>${p.valid_until ? new Date(p.valid_until).toLocaleDateString('id-ID') : 'Selamanya'}</td>
+                                    <td>
+                                        <button class="toggle-promo" data-id="${p.id}" data-active="${p.is_active}" style="background:#3498db; padding:5px 10px;">${p.is_active ? 'Nonaktifkan' : 'Aktifkan'}</button>
+                                        <button class="delete-promo" data-id="${p.id}" style="background:#e74c3c; padding:5px 10px;">Hapus</button>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>`
+                }
+            </div>
+            <button id="backBtn" class="btn-back" style="margin-top:15px;">Kembali</button>
+        </div>
+    `;
+    
+    document.getElementById("adminContent").innerHTML = html;
+    
+    document.getElementById("backBtn").onclick = () => renderAdminDashboard();
+    
+    // Tambah promo
+    document.getElementById("addPromoForm").onsubmit = async (e) => {
+        e.preventDefault();
+        
+        let code = document.getElementById("promoCode").value.toUpperCase();
+        let discount = parseInt(document.getElementById("promoDiscount").value);
+        let validUntil = document.getElementById("promoValidUntil").value;
+        
+        if (!code || !discount) {
+            alert("Isi kode promo dan diskon!");
+            return;
+        }
+        
+        const { error } = await supabaseClient
+            .from('promo_codes')
+            .insert({
+                code: code,
+                discount_percent: discount,
+                is_active: true,
+                valid_until: validUntil || null,
+                created_at: new Date().toISOString()
+            });
+        
+        if (error) {
+            alert("Gagal: " + error.message);
+        } else {
+            alert("✅ Kode promo berhasil ditambahkan!");
+            renderPromoManager();
+        }
+    };
+    
+    // Toggle promo (aktif/nonaktif)
+    document.querySelectorAll(".toggle-promo").forEach(btn => {
+        btn.onclick = async () => {
+            let id = btn.getAttribute("data-id");
+            let currentActive = btn.getAttribute("data-active") === 'true';
+            
+            const { error } = await supabaseClient
+                .from('promo_codes')
+                .update({ is_active: !currentActive })
+                .eq('id', id);
+            
+            if (error) {
+                alert("Gagal: " + error.message);
+            } else {
+                alert(`✅ Kode promo ${!currentActive ? 'diaktifkan' : 'dinonaktifkan'}`);
+                renderPromoManager();
+            }
+        };
+    });
+    
+    // Hapus promo
+    document.querySelectorAll(".delete-promo").forEach(btn => {
+        btn.onclick = async () => {
+            if (confirm("Hapus kode promo ini?")) {
+                let id = btn.getAttribute("data-id");
+                const { error } = await supabaseClient
+                    .from('promo_codes')
+                    .delete()
+                    .eq('id', id);
+                
+                if (error) {
+                    alert("Gagal: " + error.message);
+                } else {
+                    alert("✅ Kode promo dihapus!");
+                    renderPromoManager();
+                }
+            }
+        };
+    });
 }
 
-async function renderPromoManager() { document.getElementById("adminContent").innerHTML = `<div class="card"><h2>Manajemen Diskon</h2><button id="backBtn" class="btn-back">Kembali</button></div>`; document.getElementById("backBtn").onclick = () => renderAdminDashboard(); }
 async function renderFinancialReport() {
     // Ambil semua transaksi penjualan
-    let { data: sales } = await supabaseClient
+    const { data: sales, error } = await supabaseClient
         .from('sales_transactions')
         .select('*')
         .order('created_at', { ascending: false });
+    
+    if (error) {
+        console.error("Error load sales:", error);
+    }
     
     // Hitung total pendapatan
     let totalRevenue = 0;
@@ -2793,7 +2973,9 @@ async function renderFinancialReport() {
         let monthName = date.toLocaleDateString('id-ID', { year: 'numeric', month: 'long' });
         let yearKey = `${date.getFullYear()}`;
         
-        if (!monthlyRevenue[monthKey]) monthlyRevenue[monthKey] = { name: monthName, total: 0, count: 0 };
+        if (!monthlyRevenue[monthKey]) {
+            monthlyRevenue[monthKey] = { name: monthName, total: 0, count: 0 };
+        }
         monthlyRevenue[monthKey].total += amount;
         monthlyRevenue[monthKey].count++;
         
@@ -2802,7 +2984,7 @@ async function renderFinancialReport() {
     }
     
     // Hitung pajak (0.5% dari omzet untuk UMKM)
-    let taxRate = 0.5; // 0.5%
+    let taxRate = 0.5;
     let taxAmount = totalRevenue * (taxRate / 100);
     let netProfit = totalRevenue - taxAmount;
     
@@ -2816,20 +2998,20 @@ async function renderFinancialReport() {
             <div class="alert-info" style="margin-bottom:15px;">
                 <strong>📌 Keterangan:</strong><br>
                 • Pajak UMKM: <strong>0,5%</strong> dari omzet bruto (PP No. 23/2018)<br>
-                • Omzet di bawah Rp 500 juta/tahun: <strong>TIDAK KENA PAJAK</strong><br>
-                • Omzet di atas Rp 500 juta/tahun: dikenakan PPh Final 0,5%
+                • Omzet di bawah Rp 500 juta/tahun: <strong>TIDAK KENA PAJAK</strong>
             </div>
             
             <div class="stats-grid">
-                <div class="stat-card"><div class="stat-number">${formatRupiah(totalRevenue)}</div><div>Total Omzet (Kotor)</div></div>
-                <div class="stat-card"><div class="stat-number">${formatRupiah(taxAmount)}</div><div>Pajak Terutang (0,5%)</div></div>
+                <div class="stat-card"><div class="stat-number">${formatRupiah(totalRevenue)}</div><div>Total Omzet</div></div>
+                <div class="stat-card"><div class="stat-number">${formatRupiah(taxAmount)}</div><div>Pajak (0,5%)</div></div>
                 <div class="stat-card"><div class="stat-number">${formatRupiah(netProfit)}</div><div>Laba Bersih</div></div>
             </div>
             
             <div class="alert-warning" style="margin-top:15px; padding:15px;">
                 <strong>⚠️ Catatan Pajak:</strong><br>
                 • Jika omzet setahun <strong>${formatRupiah(500000000)}</strong>, maka <strong>TIDAK ADA KEWAJIBAN PAJAK</strong><br>
-                • Omzet tahun ini: ${formatRupiah(currentYearRevenue)} ${currentYearRevenue >= 500000000 ? '(Sudah melebihi batas, wajib lapor pajak)' : '(Masih di bawah batas, bebas pajak)'}
+                • Omzet tahun ini: ${formatRupiah(currentYearRevenue)} 
+                ${currentYearRevenue >= 500000000 ? '(⚠️ Sudah melebihi batas, wajib lapor pajak)' : '(✅ Masih di bawah batas, bebas pajak)'}
             </div>
         </div>
         
@@ -2841,31 +3023,39 @@ async function renderFinancialReport() {
                     ${Object.entries(yearlyRevenue).map(([year, amount]) => {
                         let tax = amount * (taxRate / 100);
                         let isTaxable = amount >= 500000000;
-                        return `<tr><td>${year}</td><td>${formatRupiah(amount)}</td><td>${formatRupiah(tax)}</td>
-                        <td style="color:${isTaxable ? '#e74c3c' : '#27ae60'}">${isTaxable ? 'Wajib Lapor' : 'Bebas Pajak'}</td></tr>`;
+                        return `<tr>
+                            <td>${year}</td>
+                            <td>${formatRupiah(amount)}</td>
+                            <td>${formatRupiah(tax)}</td>
+                            <td style="color:${isTaxable ? '#e74c3c' : '#27ae60'}">${isTaxable ? 'Wajib Lapor' : 'Bebas Pajak'}</td>
+                        </tr>`;
                     }).join('') || '<tr><td colspan="4">Belum ada data</td></tr>'}
                 </tbody>
             </table>
         </div>
         
         <div class="card">
-            <h2>📆 PENDAPATAN PER BULAN (TAHUN INI)</h2>
+            <h2>📆 PENDAPATAN PER BULAN</h2>
             <div style="overflow-x:auto;">
                 <table class="report-table">
-                    <thead><tr style="background:#1e6b3b; color:white;"><th>Bulan</th><th>Jumlah Transaksi</th><th>Omzet</th><th>Pajak (0,5%)</th><th>Status</th></tr></thead>
+                    <thead><tr style="background:#1e6b3b; color:white;"><th>Bulan</th><th>Transaksi</th><th>Omzet</th><th>Pajak</th></table></thead>
                     <tbody>
                         ${Object.entries(monthlyRevenue).map(([key, data]) => {
                             let tax = data.total * (taxRate / 100);
-                            return `<tr><td>${data.name}</td><td>${data.count}</td><td>${formatRupiah(data.total)}</td><td>${formatRupiah(tax)}</td>
-                            <td style="color:${currentYearRevenue >= 500000000 ? '#e74c3c' : '#27ae60'}">${currentYearRevenue >= 500000000 ? 'Kena Pajak' : 'Bebas Pajak'}</td></tr>`;
-                        }).join('') || '<tr><td colspan="5">Belum ada data</td></tr>'}
+                            return `<tr>
+                                <td>${data.name}</td>
+                                <td>${data.count} kali</td>
+                                <td>${formatRupiah(data.total)}</td>
+                                <td>${formatRupiah(tax)}</td>
+                            </tr>`;
+                        }).join('') || '<tr><td colspan="4">Belum ada data</td></tr>'}
                     </tbody>
                 </table>
             </div>
         </div>
         
         <div class="card">
-            <h2>🧾 SURAT KETERANGAN PAJAK (Sederhana)</h2>
+            <h2>🧾 SURAT KETERANGAN PAJAK</h2>
             <div style="background:white; padding:20px; border-radius:12px; border:1px solid #ddd; color:#333;">
                 <p style="text-align:center; font-weight:bold; font-size:14pt;">ALFARUQ ONLINE COURSE</p>
                 <p style="text-align:center;">Laporan Penghasilan UMKM</p>
@@ -2875,7 +3065,7 @@ async function renderFinancialReport() {
                 <p><strong>Pajak UMKM (0,5%):</strong> ${formatRupiah(currentYearTax)}</p>
                 <p><strong>Status:</strong> ${currentYearRevenue >= 500000000 ? 'Wajib Lapor SPT Masa PPh Final UMKM' : 'Omzet masih di bawah Rp 500 juta, tidak wajib lapor pajak'}</p>
                 <hr>
-                <p style="font-size:9pt; color:#999;">*Dihasilkan secara otomatis oleh sistem. Data berdasarkan transaksi yang tercatat.</p>
+                <p style="font-size:9pt; color:#999;">*Dihasilkan secara otomatis oleh sistem</p>
             </div>
             <button id="printTaxReport" class="btn-primary" style="margin-top:15px;">🖨️ Cetak Laporan Pajak</button>
         </div>
@@ -2895,8 +3085,7 @@ async function renderFinancialReport() {
             <style>
                 body { font-family: Arial, sans-serif; padding: 40px; }
                 .header { text-align: center; margin-bottom: 30px; }
-                .content { margin: 20px 0; }
-                table { width: 100%; border-collapse: collapse; }
+                table { width: 100%; border-collapse: collapse; margin: 10px 0; }
                 td, th { border: 1px solid #ddd; padding: 8px; }
             </style>
             </head>
