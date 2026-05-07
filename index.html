@@ -808,6 +808,7 @@ function renderQuizPage() {
             await supabaseClient.from('user_progress').upsert({ user_id: currentUser.id, course_id: currentCourseForUser.id, completed_lessons: completed }, { onConflict: 'user_id, course_id' }); }
             await checkAndUpdateReferralStatus();
             await checkAndUpdateReferralStatus();
+            await checkAndUpdateReferralStatus();
             await checkAndAwardBadges();
             document.getElementById("quizResult").innerHTML = `<div class="alert-success">✅ Lulus! Nilai: ${score * 10}/100</div>`;
             setTimeout(() => { renderLearningView(); }, 2000);
@@ -2137,7 +2138,7 @@ async function renderPracticalScoresAdmin() {
         const score = parseInt(document.getElementById("practicalScore").value);
         const notes = document.getElementById("practicalNotes").value;
         
-        if (!userId || !courseId || isNaN(lessonId) || !score) {
+        if (!userId || !courseId || isNaN(lessonId) || score === '' || isNaN(score)) {
             alert("Lengkapi semua data!");
             return;
         }
@@ -2149,10 +2150,8 @@ async function renderPracticalScoresAdmin() {
                 course_id: courseId,
                 lesson_id: lessonId,
                 score: score,
-                notes: notes,
-                evaluated_by: currentUser.id,
-                created_at: new Date().toISOString()
-            }, { onConflict: 'user_id, course_id, lesson_id' });
+                notes: notes
+            }, { onConflict: 'user_id,course_id,lesson_id' });
         
         if (error) {
             alert("❌ Gagal: " + error.message);
