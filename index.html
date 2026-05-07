@@ -994,79 +994,271 @@ document.querySelectorAll(".select-ppob-product").forEach(btn => {
 });
 }
 
+// ======================== RENDER CERTIFICATE PAGE ========================
 async function renderCertificatePage() {
     let ownedCourses = coursesData.filter(c => isCourseOwned(c.id));
-    let completedCourses = ownedCourses.filter(c => { let completed = currentUser.completedLessons[c.id] || []; return completed.length === (c.lessons || []).length && (c.lessons || []).length > 0; });
-    let html = `<div class="tabs"><div class="tab" id="backToDash">Kembali</div><div class="tab active">Sertifikat Kelulusan</div></div>
-        <div class="card">${completedCourses.length === 0 ? '<div class="alert-warning">Selesaikan semua materi suatu kursus untuk mendapatkan sertifikat.</div>' : ''}
-        ${completedCourses.map(c => `<div style="border:2px solid #f4a261; border-radius:20px; padding:20px; margin-bottom:15px; text-align:center;">
-        <div style="font-size:1.5rem; font-weight:bold;">${escapeHtml(currentUser.name)}</div><div style="font-size:1.2rem; color:#e67e22;">${c.title}</div>
-        <p>Telah menyelesaikan program</p><button class="btn-success download-cert" data-title="${c.title}" data-course-id="${c.id}">Download Sertifikat PDF (A4)</button></div>`).join('')}</div>`;
+    let completedCourses = ownedCourses.filter(c => { 
+        let completed = currentUser.completedLessons[c.id] || []; 
+        return completed.length === (c.lessons || []).length && (c.lessons || []).length > 0; 
+    });
+    
+    let html = `
+        <div class="tabs">
+            <div class="tab" id="backToDash">Kembali</div>
+            <div class="tab active">Sertifikat Kelulusan</div>
+        </div>
+        <div class="card">
+            ${completedCourses.length === 0 ? '<div class="alert-warning">Selesaikan semua materi suatu kursus untuk mendapatkan sertifikat.</div>' : ''}
+            ${completedCourses.map(c => `
+                <div style="border:2px solid #f4a261; border-radius:20px; padding:20px; margin-bottom:15px; text-align:center;">
+                    <div style="font-size:1.5rem; font-weight:bold;">${escapeHtml(currentUser.name)}</div>
+                    <div style="font-size:1.2rem; color:#e67e22;">${c.title}</div>
+                    <p>Telah menyelesaikan program</p>
+                    <button class="btn-success download-cert" data-title="${c.title}" data-course-id="${c.id}">Download Sertifikat PDF (A4)</button>
+                </div>
+            `).join('')}
+        </div>
+    `;
+    
     document.getElementById("appRoot").innerHTML = html;
     document.getElementById("backToDash").onclick = () => renderUserDashboard();
-    document.querySelectorAll(".download-cert").forEach(btn => { btn.onclick = async () => {
-        let courseId = parseInt(btn.getAttribute("data-course-id"));
-        let course = coursesData.find(c => c.id === courseId);
-        let finalScore = 0, totalScore = 0, quizCount = 0;
-        for (let i = 0; i < (course.lessons || []).length; i++) {
-            let score = localStorage.getItem(`quiz_${currentUser.id}_${course.id}_${i}`);
-            if (score) { totalScore += parseInt(score); quizCount++; }
-        }
-        finalScore = quizCount > 0 ? Math.round((totalScore / quizCount) * 10) : 0;
-        let certHtml = `<div class="certificate-container"><div class="certificate-border"><div class="certificate-logo">📖</div><div class="certificate-title">ALFARUQ</div>
-        <div class="certificate-subtitle">Online Course</div><div class="certificate-recipient-name">${escapeHtml(currentUser.name)}</div>
-        <div class="certificate-course">${escapeHtml(course.title)}</div><p style="text-align:center;">Telah menyelesaikan program dengan predikat Memuaskan</p>
-        <p style="text-align:center;">Nilai Akhir: ${finalScore} / 100</p><div class="certificate-footer"><div class="certificate-signature"><div class="certificate-signature-line"></div>Pengajar</div>
-        <div class="certificate-signature"><div class="certificate-signature-line"></div>Direktur</div></div><div class="certificate-id">ID Sertifikat: ${currentUser.id}_${course.id}_${Date.now()}</div></div></div>`;
-        let win = window.open();
-        win.document.write(`<html><head><title>Sertifikat ${course.title}</title><style>body{margin:0;padding:0;}.certificate-container{width:210mm;min-height:297mm;margin:0 auto;padding:15mm;background:white;}.certificate-border{border:2px solid #f4a261;padding:15mm;}.certificate-logo{font-size:2.5rem;text-align:center;}.certificate-title{text-align:center;font-size:28pt;color:#1e6b3b;}.certificate-recipient-name{font-size:28pt;font-weight:bold;text-align:center;}.certificate-course{font-size:18pt;color:#e67e22;text-align:center;}.certificate-footer{display:flex;justify-content:space-between;margin-top:40px;}.certificate-signature{text-align:center;width:45%;}.certificate-signature-line{border-top:1px solid #333;width:80%;margin:30px auto 10px;}</style></head><body>${certHtml}<script>window.onload=function(){setTimeout(function(){window.print();window.close();},500);};<\/script></body></html>`);
-        win.document.close();
-    }; });
+    
+    // Event download sertifikat
+    document.querySelectorAll(".download-cert").forEach(btn => {
+        btn.onclick = async () => {
+            let courseId = parseInt(btn.getAttribute("data-course-id"));
+            let course = coursesData.find(c => c.id === courseId);
+            
+            // Hitung nilai akhir dari database
+            let finalScore = 0;
+            let totalScore = 0;
+            let quizCount = 0;
+            
+            const { data: scores } = await supabaseClient
+                .from('scores')
+                .select('quiz_score')
+                .eq('user_id', currentUser.id)
+                .eq('course_id', course.id);
+            
+            if (scores && scores.length > 0) {
+                totalScore = scores.reduce((sum, s) => sum + (s.quiz_score || 0), 0);
+                quizCount = scores.length;
+                finalScore = Math.round(totalScore / quizCount);
+            }
+            
+            // Buat HTML sertifikat untuk print
+            const certHtml = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="UTF-8">
+                    <title>Sertifikat - ${course.title}</title>
+                    <style>
+                        * { margin: 0; padding: 0; box-sizing: border-box; }
+                        body {
+                            background: white;
+                            font-family: 'Times New Roman', Times, serif;
+                            display: flex;
+                            justify-content: center;
+                            align-items: center;
+                            min-height: 100vh;
+                        }
+                        .certificate {
+                            width: 210mm;
+                            min-height: 297mm;
+                            padding: 20mm;
+                            background: white;
+                            border: 2px solid #f4a261;
+                            position: relative;
+                        }
+                        .certificate h1 {
+                            text-align: center;
+                            font-size: 32pt;
+                            color: #1e6b3b;
+                            margin: 30px 0;
+                        }
+                        .certificate h2 {
+                            text-align: center;
+                            font-size: 18pt;
+                            color: #333;
+                        }
+                        .certificate .recipient {
+                            text-align: center;
+                            font-size: 28pt;
+                            font-weight: bold;
+                            color: #2c3e50;
+                            margin: 40px 0;
+                        }
+                        .certificate .course-name {
+                            text-align: center;
+                            font-size: 20pt;
+                            color: #e67e22;
+                            margin: 20px 0;
+                        }
+                        .certificate .score {
+                            text-align: center;
+                            font-size: 14pt;
+                            margin: 20px 0;
+                        }
+                        .certificate .footer {
+                            margin-top: 50px;
+                            display: flex;
+                            justify-content: space-between;
+                        }
+                        .certificate .signature {
+                            text-align: center;
+                            width: 45%;
+                        }
+                        .certificate .signature-line {
+                            border-top: 1px solid #333;
+                            width: 80%;
+                            margin: 30px auto 10px;
+                        }
+                        .certificate .id {
+                            text-align: center;
+                            font-size: 9pt;
+                            color: #999;
+                            margin-top: 30px;
+                        }
+                        @media print {
+                            body { margin: 0; padding: 0; }
+                            .certificate { box-shadow: none; }
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="certificate">
+                        <h1>ALFARUQ</h1>
+                        <h2>Online Course</h2>
+                        <div class="recipient">${escapeHtml(currentUser.name)}</div>
+                        <div class="course-name">${escapeHtml(course.title)}</div>
+                        <p style="text-align:center;">Telah menyelesaikan program dengan predikat</p>
+                        <p style="text-align:center; font-size:16pt; font-weight:bold; color:#27ae60;">SANGAT MEMUASKAN</p>
+                        <div class="score">Nilai Akhir: ${finalScore} / 100</div>
+                        <div class="footer">
+                            <div class="signature">
+                                <div class="signature-line"></div>
+                                Pengajar
+                            </div>
+                            <div class="signature">
+                                <div class="signature-line"></div>
+                                Direktur
+                            </div>
+                        </div>
+                        <div class="id">ID Sertifikat: ${currentUser.id}_${course.id}_${Date.now()}</div>
+                    </div>
+                    <script>
+                        window.onload = function() {
+                            setTimeout(function() {
+                                window.print();
+                                setTimeout(function() { window.close(); }, 500);
+                            }, 500);
+                        };
+                    <\/script>
+                </body>
+                </html>
+            `;
+            
+            const printWindow = window.open('', '_blank');
+            printWindow.document.write(certHtml);
+            printWindow.document.close();
+        };
+    });
 }
 
+// ======================== RENDER REPORT PAGE ========================
 async function renderReportPage() {
+    // Refresh data dari database
+    const { data: scoresData } = await supabaseClient
+        .from('scores')
+        .select('*')
+        .eq('user_id', currentUser.id);
+    currentUser.scores = scoresData || [];
+    
     let earned = currentUser.earnedBadges || [];
-    let html = `<div class="tabs"><div class="tab" id="backToDash">Kembali</div><div class="tab active">Rapor & Badge</div></div>
-        <div class="card"><h2>Badge yang Diperoleh</h2><div class="badge-container">${badgesData.map(b => `<div class="badge-item ${earned.includes(b.id) ? 'earned' : ''}"><div class="badge-icon">${b.icon || '🏅'}</div><div><strong>${b.name}</strong></div><small>${b.requirement}</small>${earned.includes(b.id) ? '<div style="color:#27ae60;">Didapat</div>' : '<div style="color:#999;">Belum</div>'}</div>`).join('')}</div></div>
-        <div class="card"><h2>Rapor Nilai</h2><table class="report-table"><thead><tr><th>Kursus</th><th>Materi</th><th>Nilai Quiz</th></tr></thead>
-        <tbody>${(currentUser.scores || []).map(s => { let course = coursesData.find(c => c.id === s.course_id); let lesson = course?.lessons[s.lesson_id]; return `<tr><td>${course?.title || '-'}</td><td>${lesson?.title || '-'}</td><td>${s.quiz_score || '-'}</td></tr>`; }).join('') || '<tr><td colspan="3">Belum ada nilai</td></tr>'}</tbody></table>
-        <button id="downloadReportBtn" class="btn-success">Download Rapor PDF (A4)</button></div>`;
+    
+    let html = `
+        <div class="tabs">
+            <div class="tab" id="backToDash">Kembali</div>
+            <div class="tab active">Rapor & Badge</div>
+        </div>
+        <div class="card">
+            <h2>Badge yang Diperoleh</h2>
+            <div class="badge-container">
+                ${badgesData.map(b => `
+                    <div class="badge-item ${earned.includes(b.id) ? 'earned' : ''}">
+                        <div class="badge-icon">${b.icon || '🏅'}</div>
+                        <div><strong>${b.name}</strong></div>
+                        <small>${b.requirement}</small>
+                        ${earned.includes(b.id) ? '<div style="color:#27ae60;">Didapat</div>' : '<div style="color:#999;">Belum</div>'}
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+        <div class="card">
+            <h2>Rapor Nilai</h2>
+            <table class="report-table">
+                <thead>
+                    <tr style="background:#1e6b3b; color:white;">
+                        <th>Kursus</th><th>Materi</th><th>Nilai Quiz</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${currentUser.scores.map(s => {
+                        let course = coursesData.find(c => c.id === s.course_id);
+                        let lesson = course?.lessons[s.lesson_id];
+                        return `<tr>
+                            <td>${course?.title || '-'}</td>
+                            <td>${lesson?.title || '-'}</td>
+                            <td>${s.quiz_score || '-'}</td>
+                        </tr>`;
+                    }).join('') || '<tr><td colspan="3">Belum ada nilai</td></tr>'}
+                </tbody>
+            </table>
+            <button id="downloadReportBtn" class="btn-success" style="margin-top:15px;">Download Rapor PDF</button>
+        </div>
+    `;
+    
     document.getElementById("appRoot").innerHTML = html;
     document.getElementById("backToDash").onclick = () => renderUserDashboard();
+    
     document.getElementById("downloadReportBtn").onclick = () => {
-        let reportHtml = `<div class="report-container"><div class="report-title">ALFARUQ ONLINE COURSE</div><div style="text-align:center;">Laporan Hasil Belajar</div>
-        <div class="report-section"><div class="report-section-title">Informasi Peserta</div><p><strong>Nama:</strong> ${escapeHtml(currentUser.name)}</p><p><strong>Email:</strong> ${currentUser.email}</p><p><strong>Tanggal:</strong> ${new Date().toLocaleDateString('id-ID')}</p></div>
-        <div class="report-section"><div class="report-section-title">Nilai Per Materi</div><table class="report-table"><thead><tr><th>Kursus</th><th>Materi</th><th>Nilai Quiz</th><th>Status</th></tr></thead>
-        <tbody>${coursesData.filter(c => isCourseOwned(c.id)).flatMap(c => (c.lessons || []).map((l, idx) => { let score = localStorage.getItem(`quiz_${currentUser.id}_${c.id}_${idx}`); let status = score && parseInt(score) >= 7 ? 'Lulus' : 'Belum'; return `<tr><td>${c.title}</td><td>${l.title}</td><td>${score ? (parseInt(score) * 10) : '-'}</td><td>${status}</td></tr>`; })).join('')}</tbody></table></div></div>`;
-        let win = window.open();
-        win.document.write(`<html><head><title>Rapor ${currentUser.name}</title><style>body{font-family:'Segoe UI',sans-serif;}.report-container{max-width:210mm;margin:0 auto;}.report-title{font-size:20pt;color:#1e6b3b;text-align:center;}.report-section-title{font-size:14pt;font-weight:bold;border-bottom:2px solid #1e6b3b;}.report-table{width:100%;border-collapse:collapse;}.report-table th,.report-table td{border:1px solid #ddd;padding:8px;}</style></head><body>${reportHtml}<script>window.onload=function(){setTimeout(function(){window.print();window.close();},500);};<\/script></body></html>`);
+        let reportHtml = `
+            <div class="report-container">
+                <div class="report-title">ALFARUQ ONLINE COURSE</div>
+                <h3>Laporan Hasil Belajar</h3>
+                <p><strong>Nama:</strong> ${escapeHtml(currentUser.name)}</p>
+                <p><strong>Tanggal:</strong> ${new Date().toLocaleDateString('id-ID')}</p>
+                <table class="report-table" border="1" cellpadding="5">
+                    <thead><tr><th>Kursus</th><th>Materi</th><th>Nilai</th></tr></thead>
+                    <tbody>
+                        ${currentUser.scores.map(s => {
+                            let course = coursesData.find(c => c.id === s.course_id);
+                            let lesson = course?.lessons[s.lesson_id];
+                            return `<tr><td>${course?.title || '-'}</td><td>${lesson?.title || '-'}</td><td>${s.quiz_score || '-'}</td></tr>`;
+                        }).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `;
+        
+        const win = window.open();
+        win.document.write(`
+            <html>
+            <head><title>Rapor ${currentUser.name}</title>
+            <style>
+                body { font-family: Arial, sans-serif; padding: 20px; }
+                .report-container { max-width: 800px; margin: auto; }
+                .report-title { font-size: 20pt; color: #1e6b3b; text-align: center; }
+                .report-table { width: 100%; border-collapse: collapse; }
+                .report-table th, .report-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+            </style>
+            </head>
+            <body>${reportHtml}<script>window.onload=function(){setTimeout(function(){window.print();window.close();},500);};<\/script></body>
+            </html>
+        `);
         win.document.close();
     };
-}
-
-function renderResellerInfo() {
-    let html = `<div class="tabs"><div class="tab" id="backToDash">Kembali</div><div class="tab active">Program Reseller</div></div>
-        <div class="card"><h2>Status Reseller Anda</h2><p>Kode Referral: <code>${currentUser.referralCode}</code></p>
-        <p>Total Komisi: <strong>${formatRupiah(currentUser.commission || 0)}</strong></p><p>Status: ${currentUser.canRefer ? '<span style="color:#27ae60;">AKTIF</span>' : '<span style="color:#e74c3c;">BELUM AKTIF</span>'}</p>
-        ${!currentUser.canRefer ? '<div class="alert-warning">Selesaikan 1 kursus penuh dengan nilai minimal 7 untuk mengaktifkan program reseller!</div>' : ''}
-        <h3>Level Komisi</h3><table class="commission-table"><thead><tr><th>Level</th><th>Referral</th><th>Komisi</th></tr></thead>
-        <tbody><tr><td>BASIC</td><td>0-49</td><td>20%</td></tr><tr><td>BRONZE</td><td>50-99</td><td>25%</td></tr><tr><td>SILVER</td><td>100-499</td><td>30%</td></tr>
-        <tr><td>GOLD</td><td>500-999</td><td>35%</td></tr><tr><td>PLATINUM</td><td>1000-4999</td><td>40%</td></tr><tr><td>DIAMOND</td><td>5000+</td><td>50%</td></tr></tbody></table>
-        <button id="backBtn" class="btn-back">Kembali</button></div>`;
-    document.getElementById("appRoot").innerHTML = html;
-    document.getElementById("backToDash").onclick = () => renderUserDashboard();
-    document.getElementById("backBtn").onclick = () => renderUserDashboard();
-}
-
-function copyReferral() { navigator.clipboard.writeText(window.location.href.split('#')[0] + '?ref=' + currentUser.referralCode); alert("Link referral disalin!"); }
-
-function toggleDarkMode() {
-    let current = document.documentElement.getAttribute("data-theme");
-    if (current === "light") { document.documentElement.setAttribute("data-theme", "dark"); localStorage.setItem("darkMode", "true"); }
-    else { document.documentElement.setAttribute("data-theme", "light"); localStorage.setItem("darkMode", "false"); }
-    let hash = window.location.hash.slice(1);
-    if (hash === "dashboard" && currentUser) renderUserDashboard();
-    else if (hash === "landing") renderLandingPage();
 }
 async function renderWalletPage() {
     let html = `
