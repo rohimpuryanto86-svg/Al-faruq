@@ -1256,6 +1256,19 @@ async function renderReportPage() {
                 })
                 : [['Belum ada nilai', '', '']];
 
+            // Di dalam renderReportPage(), tambahkan kolom Nilai Praktik
+const { data: practicalScores } = await supabaseClient
+    .from('practical_scores')
+    .select('*')
+    .eq('user_id', currentUser.id);
+
+// Tampilkan di tabel rapor
+<th>Nilai Quiz</th>
+<th>Nilai Praktik</th>
+
+// Dan di isi tabel
+<td>${s.quiz_score || '-'}</td>
+<td>${practicalScore?.score || '-'}</td>
             doc.autoTable({
                 startY: 55,
                 head: [['Kursus', 'Materi', 'Nilai']],
@@ -1904,6 +1917,7 @@ async function renderAdminDashboard() {
         <div class="tab" id="promoTab">Diskon</div><div class="tab" id="financialTab">Laporan Keuangan</div>
         <div class="tab" id="studentMgmtTab">Manajemen Peserta</div><div class="tab" id="earlyBirdTab">Early Bird</div>
         <div class="tab" id="ppobMarkupTab">PPOB Markup</div></div>
+        <div class="tab" id="practicalTab">📝 Nilai Praktik</div>
         <div id="adminContent"><div class="card"><h2>Pendaftaran Menunggu (${pendingUsers?.length || 0})</h2>
         ${(pendingUsers || []).map(u => `<div style="border-bottom:1px solid #eee; padding:10px;"><strong>${u.full_name}</strong> (${u.email})<br>WhatsApp: ${u.phone || '-'}<br>
         <button class="btn-approve" data-user="${u.user_id}" style="background:#27ae60;">Setujui</button>
@@ -1928,6 +1942,7 @@ async function renderAdminDashboard() {
     document.getElementById("studentMgmtTab").onclick = () => renderStudentDashboard();
     document.getElementById("earlyBirdTab").onclick = () => renderEarlyBirdSettings();
     document.getElementById("ppobMarkupTab").onclick = () => renderPPOBMarkupSettings();
+    document.getElementById("practicalTab").onclick = () => renderPracticalScoresAdmin();
     
     document.querySelectorAll(".btn-approve").forEach(btn => { btn.onclick = async () => { await supabaseClient.from('profiles').update({ status: 'approved' }).eq('user_id', btn.getAttribute("data-user")); alert("User disetujui!"); renderAdminDashboard(); }; });
     document.querySelectorAll(".btn-reject").forEach(btn => { btn.onclick = async () => { if(confirm("Tolak pendaftaran user ini?")) { await supabaseClient.from('profiles').delete().eq('user_id', btn.getAttribute("data-user")); alert("User ditolak!"); renderAdminDashboard(); } }; });
@@ -1984,6 +1999,208 @@ async function renderEditCourseJson() {
     validateJsonBtn.onclick = () => { try { let course = JSON.parse(jsonEditor.value); let errors = []; if (!course.title) errors.push("❌ Tidak ada 'title'"); if (!course.lessons || !Array.isArray(course.lessons)) errors.push("❌ 'lessons' harus array"); if (errors.length) setStatus(errors.join("<br>"), "danger"); else setStatus(`✅ JSON VALID! ${course.lessons?.length || 0} materi`, "success"); } catch(e) { setStatus(`❌ JSON tidak valid: ${e.message}`, "danger"); } };
     saveJsonBtn.onclick = async () => { try { let course = JSON.parse(jsonEditor.value); if (!course.id) { let maxId = Math.max(...coursesData.map(c => c.id), 0); course.id = maxId + 1; } if (!course.lessons) course.lessons = []; if (!confirm(`Simpan ${course.lessons.length} materi ke "${course.title}"?`)) return; if (await saveCourseToDB(course)) { setStatus(`✅ BERHASIL! ${course.lessons.length} materi disimpan`, "success"); await loadCourses(); location.reload(); } } catch(e) { setStatus(`❌ Gagal: ${e.message}`, "danger"); } };
     backBtn.onclick = () => renderAdminDashboard();
+}
+async function renderPracticalScoresAdmin() {
+    // Ambil daftar user
+    const { data: users } = await supabaseClient
+        .from('profiles')
+        .select('user_id, full_name')
+        .eq('status', 'approved');
+    
+    // Ambil daftar nilai praktik yang sudah ada
+    const { data: existingScores } = await supabaseClient
+        .from('practical_scores')
+        .select('*');
+    
+    let html = `
+        <div class="card">
+            <h2>📝 Input Nilai Praktik</h2>
+            <div class="alert-info">
+                <strong>Petunjuk:</strong> Berikan nilai praktik untuk setiap materi yang membutuhkan praktik (0-100).
+            </div>
+            
+            <form id="practicalForm">
+                <div class="form-group">
+                    <label>Pilih Peserta</label>
+                    <select id="practicalUserId" required>
+                        <option value="">-- Pilih Peserta --</option>
+                        ${users?.map(u => `<option value="${u.user_id}">${u.full_name}</option>`).join('')}
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>Pilih Kursus</label>
+                    <select id="practicalCourseId" required>
+                        <option value="">-- Pilih Kursus --</option>
+                        ${coursesData.map(c => `<option value="${c.id}">${c.title}</option>`).join('')}
+                    </select>
+                </div>
+                
+                <div class="form-group" id="practicalLessonGroup" style="display:none;">
+                    <label>Pilih Materi</label>
+                    <select id="practicalLessonId" required>
+                        <option value="">-- Pilih Materi --</option>
+                    </select>
+                </div>
+                
+                <div class="form-group" id="practicalScoreGroup" style="display:none;">
+                    <label>Nilai Praktik (0-100)</label>
+                    <input type="number" id="practicalScore" min="0" max="100" required>
+                </div>
+                
+                <div class="form-group" id="practicalNotesGroup" style="display:none;">
+                    <label>Catatan (Opsional)</label>
+                    <textarea id="practicalNotes" rows="3" placeholder="Contoh: Makalah bagus, presentasi lancar..."></textarea>
+                </div>
+                
+                <button type="submit" class="btn-success" id="savePracticalBtn" style="display:none;">💾 Simpan Nilai Praktik</button>
+            </form>
+        </div>
+        
+        <div class="card">
+            <h2>📋 Daftar Nilai Praktik</h2>
+            <div id="practicalList">
+                <div class="alert-info">Memuat data...</div>
+            </div>
+        </div>
+    `;
+    
+    document.getElementById("adminContent").innerHTML = html;
+    
+    // Event untuk pilih kursus
+    document.getElementById("practicalCourseId").onchange = async () => {
+        const courseId = document.getElementById("practicalCourseId").value;
+        const lessonGroup = document.getElementById("practicalLessonGroup");
+        const lessonSelect = document.getElementById("practicalLessonId");
+        
+        if (courseId) {
+            const course = coursesData.find(c => c.id == courseId);
+            if (course && course.lessons) {
+                lessonSelect.innerHTML = '<option value="">-- Pilih Materi --</option>';
+                course.lessons.forEach((lesson, idx) => {
+                    lessonSelect.innerHTML += `<option value="${idx}">${idx+1}. ${lesson.title}</option>`;
+                });
+                lessonGroup.style.display = "block";
+            }
+        } else {
+            lessonGroup.style.display = "none";
+        }
+    };
+    
+    // Event untuk pilih materi
+    document.getElementById("practicalLessonId").onchange = () => {
+        const scoreGroup = document.getElementById("practicalScoreGroup");
+        const notesGroup = document.getElementById("practicalNotesGroup");
+        const saveBtn = document.getElementById("savePracticalBtn");
+        
+        if (document.getElementById("practicalLessonId").value) {
+            scoreGroup.style.display = "block";
+            notesGroup.style.display = "block";
+            saveBtn.style.display = "block";
+        } else {
+            scoreGroup.style.display = "none";
+            notesGroup.style.display = "none";
+            saveBtn.style.display = "none";
+        }
+    };
+    
+    // Load daftar nilai praktik
+    await loadPracticalScoresList();
+    
+    // Submit form
+    document.getElementById("practicalForm").onsubmit = async (e) => {
+        e.preventDefault();
+        
+        const userId = document.getElementById("practicalUserId").value;
+        const courseId = parseInt(document.getElementById("practicalCourseId").value);
+        const lessonId = parseInt(document.getElementById("practicalLessonId").value);
+        const score = parseInt(document.getElementById("practicalScore").value);
+        const notes = document.getElementById("practicalNotes").value;
+        
+        if (!userId || !courseId || isNaN(lessonId) || !score) {
+            alert("Lengkapi semua data!");
+            return;
+        }
+        
+        const { error } = await supabaseClient
+            .from('practical_scores')
+            .upsert({
+                user_id: userId,
+                course_id: courseId,
+                lesson_id: lessonId,
+                score: score,
+                notes: notes,
+                evaluated_by: currentUser.id,
+                created_at: new Date().toISOString()
+            }, { onConflict: 'user_id, course_id, lesson_id' });
+        
+        if (error) {
+            alert("❌ Gagal: " + error.message);
+        } else {
+            alert("✅ Nilai praktik berhasil disimpan!");
+            await loadPracticalScoresList();
+            
+            // Reset form
+            document.getElementById("practicalUserId").value = "";
+            document.getElementById("practicalCourseId").value = "";
+            document.getElementById("practicalLessonId").value = "";
+            document.getElementById("practicalLessonGroup").style.display = "none";
+            document.getElementById("practicalScore").value = "";
+            document.getElementById("practicalNotes").value = "";
+            document.getElementById("practicalScoreGroup").style.display = "none";
+            document.getElementById("practicalNotesGroup").style.display = "none";
+            document.getElementById("savePracticalBtn").style.display = "none";
+        }
+    };
+}
+
+async function loadPracticalScoresList() {
+    const { data: scores, error } = await supabaseClient
+        .from('practical_scores')
+        .select('*, profiles(full_name)');
+    
+    const container = document.getElementById("practicalList");
+    if (!container) return;
+    
+    if (error || !scores || scores.length === 0) {
+        container.innerHTML = '<div class="alert-info">Belum ada nilai praktik.</div>';
+        return;
+    }
+    
+    let html = `
+        <table class="report-table">
+            <thead>
+                <tr style="background:#1e6b3b; color:white;">
+                    <th>Peserta</th>
+                    <th>Kursus</th>
+                    <th>Materi</th>
+                    <th>Nilai</th>
+                    <th>Catatan</th>
+                    <th>Tanggal</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+    
+    for (const s of scores) {
+        const course = coursesData.find(c => c.id === s.course_id);
+        const lesson = course?.lessons[s.lesson_id];
+        const userName = s.profiles?.full_name || s.user_id;
+        
+        html += `
+            <tr>
+                <td>${userName}</td>
+                <td>${course?.title || '-'}</td>
+                <td>${lesson?.title || `Materi ${s.lesson_id + 1}`}</td>
+                <td style="color:${s.score >= 70 ? '#27ae60' : '#e74c3c'}; font-weight:bold;">${s.score}/100</td>
+                <td>${s.notes || '-'}</td>
+                <td>${new Date(s.created_at).toLocaleDateString('id-ID')}</td>
+            </tr>
+        `;
+    }
+    
+    html += `</tbody></table>`;
+    container.innerHTML = html;
 }
 // ======================== PPOB MARKUP SETTINGS ========================
 async function renderPPOBMarkupSettings() {
