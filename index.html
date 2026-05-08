@@ -1630,64 +1630,87 @@ async function renderCertificatePage() {
                 doc.setLineWidth(0.8);
                 doc.line(40, 158, W - 40, 158);
 
-                // Signature blocks
-                const sig1x = 70, sig2x = W - 70;
-                const sigY = 185;
-                
+                // ── FOOTER: QR | Tanda Tangan Kiri | Tanggal | Tanda Tangan Kanan ──
+                // Koordinat zona footer (landscape A4: W=297, H=210)
+                const footerLineY = 158; // gold divider sudah digambar di atas
+                const qrSize     = 28;   // ukuran QR (mm)
+                const qrX        = 18;   // QR pojok kiri
+                const qrY        = 163;  // QR pojok atas — sejajar dengan area tanda tangan
+
+                // Kolom tanda tangan: jauh dari tepi agar tidak tindih QR
+                const sig1x      = 90;         // tanda tangan kiri (Pengajar)
+                const sig2x      = W - 90;     // tanda tangan kanan (Direktur)
+                const sigImgW    = 48;
+                const sigImgH    = 16;
+                const sigLineY   = 190;         // garis tanda tangan
+                const sigImgY    = sigLineY - sigImgH - 2; // gambar tepat di atas garis
+                const sigNameY   = sigLineY + 6;
+                const sigRoleY   = sigNameY + 5;
+
                 // Ambil nama & tanda tangan dari settings
-                const certTeacherName = appSettings['cert_teacher_name'] || 'Pengajar';
+                const certTeacherName = appSettings['cert_teacher_name'] || 'Ustadz Pengajar';
                 const certDirectorName = appSettings['cert_director_name'] || 'Direktur';
                 const certTeacherSig = appSettings['cert_teacher_signature'] || '';
                 const certDirectorSig = appSettings['cert_director_signature'] || '';
 
-                // Tambahkan gambar tanda tangan jika ada
-                const sigImgH = 18, sigImgW = 50;
+                // Gambar tanda tangan kiri
                 if (certTeacherSig && certTeacherSig.startsWith('data:')) {
-                    try { doc.addImage(certTeacherSig, 'PNG', sig1x - sigImgW/2, sigY - 6 - sigImgH - 4, sigImgW, sigImgH, undefined, 'FAST'); } catch(e) { console.warn('Sig teacher:', e); }
-                }
-                if (certDirectorSig && certDirectorSig.startsWith('data:')) {
-                    try { doc.addImage(certDirectorSig, 'PNG', sig2x - sigImgW/2, sigY - 6 - sigImgH - 4, sigImgW, sigImgH, undefined, 'FAST'); } catch(e) { console.warn('Sig director:', e); }
+                    try {
+                        doc.addImage(certTeacherSig, 'PNG',
+                            sig1x - sigImgW / 2, sigImgY,
+                            sigImgW, sigImgH, undefined, 'FAST');
+                    } catch(e) { console.warn('Sig teacher:', e); }
                 }
 
-                // Signature lines
+                // Gambar tanda tangan kanan
+                if (certDirectorSig && certDirectorSig.startsWith('data:')) {
+                    try {
+                        doc.addImage(certDirectorSig, 'PNG',
+                            sig2x - sigImgW / 2, sigImgY,
+                            sigImgW, sigImgH, undefined, 'FAST');
+                    } catch(e) { console.warn('Sig director:', e); }
+                }
+
+                // Garis tanda tangan
                 doc.setDrawColor(...dark);
                 doc.setLineWidth(0.5);
-                doc.line(sig1x - 28, sigY - 6, sig1x + 28, sigY - 6);
-                doc.line(sig2x - 28, sigY - 6, sig2x + 28, sigY - 6);
+                doc.line(sig1x - 28, sigLineY, sig1x + 28, sigLineY);
+                doc.line(sig2x - 28, sigLineY, sig2x + 28, sigLineY);
 
-                doc.setFontSize(11);
+                // Nama pengajar & direktur
+                doc.setFontSize(10);
                 doc.setFont('helvetica', 'bold');
                 doc.setTextColor(...dark);
-                doc.text(certTeacherName, sig1x, sigY, { align: 'center' });
-                doc.text(certDirectorName, sig2x, sigY, { align: 'center' });
-                
+                doc.text(certTeacherName, sig1x, sigNameY, { align: 'center' });
+                doc.text(certDirectorName, sig2x, sigNameY, { align: 'center' });
+
                 // Label jabatan
+                doc.setFontSize(8);
+                doc.setFont('helvetica', 'normal');
+                doc.setTextColor(100, 100, 100);
+                doc.text('Pengajar', sig1x, sigRoleY, { align: 'center' });
+                doc.text('Direktur', sig2x, sigRoleY, { align: 'center' });
+
+                // Tanggal di tengah (antara dua tanda tangan)
                 doc.setFontSize(9);
                 doc.setFont('helvetica', 'normal');
                 doc.setTextColor(100, 100, 100);
-                doc.text('Pengajar', sig1x, sigY + 6, { align: 'center' });
-                doc.text('Direktur', sig2x, sigY + 6, { align: 'center' });
+                doc.text(dateStr, cx, sigLineY - 4, { align: 'center' });
 
-                // Date center
-                doc.setFontSize(10);
-                doc.setFont('helvetica', 'normal');
-                doc.setTextColor(100, 100, 100);
-                doc.text(dateStr, cx, sigY - 3, { align: 'center' });
-
-                // QR code bottom-left
+                // QR code verifikasi — pojok kiri bawah, tidak mengganggu tanda tangan
                 try {
                     if (qrDataUrl && qrDataUrl.startsWith('data:')) {
-                        doc.addImage(qrDataUrl, 'PNG', 16, H - 50, 32, 32);
+                        doc.addImage(qrDataUrl, 'PNG', qrX, qrY, qrSize, qrSize);
                         doc.setFontSize(6);
                         doc.setTextColor(150, 150, 150);
-                        doc.text('Scan untuk verifikasi', 32, H - 16, { align: 'center' });
+                        doc.text('Scan untuk verifikasi', qrX + qrSize / 2, qrY + qrSize + 4, { align: 'center' });
                     }
                 } catch(qrErr) { console.warn('QR add error:', qrErr); }
 
-                // Certificate ID footer
-                doc.setFontSize(8);
+                // Nomor sertifikat — bawah tengah
+                doc.setFontSize(7);
                 doc.setTextColor(180, 180, 180);
-                doc.text('No. Sertifikat: ' + certNumber, cx, H - 16, { align: 'center' });
+                doc.text('No. Sertifikat: ' + certNumber, cx, H - 5, { align: 'center' });
 
                 const safeName = (currentUser.name || 'Peserta').replace(/\s+/g, '_');
                 const safeCourse = course.title.replace(/\s+/g, '_');
