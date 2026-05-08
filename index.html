@@ -641,6 +641,15 @@ function renderLandingPage() {
         <div class="price-card"><h3>Pilih 1 Kursus</h3><div class="price-old">Rp 200.000</div><div class="price-new">${formatRupiah(getDiscountedPrice(200000))}</div><button onclick="window.location.hash='#register'">Pilih</button></div>
         <div class="price-card"><h3>Bundle (Akses Semua Kursus)</h3><div class="price-old">Rp 800.000</div><div class="price-new">${formatRupiah(getDiscountedPrice(800000))}</div><button onclick="window.location.hash='#register-bundle'">Ambil Bundle</button></div>
         </div></div>
+        <div class="card" style="text-align:center; background: linear-gradient(135deg, rgba(244,162,97,0.15), rgba(231,111,81,0.15)); border: 2px dashed var(--secondary);">
+        <h3>🏷️ Punya Kode Promo?</h3>
+        <p style="margin-bottom:15px; opacity:0.8;">Masukkan kode diskon spesialmu setelah login & masuk ke halaman Beli Kursus</p>
+        <div style="display:flex; gap:10px; justify-content:center; align-items:center; flex-wrap:wrap; max-width:400px; margin:0 auto;">
+            <input type="text" id="landingPromoInput" placeholder="Contoh: ALFARUQ10" style="flex:1; padding:12px 16px; border-radius:30px; border:2px solid var(--secondary); font-size:1rem; min-width:180px; text-transform:uppercase;">
+            <button onclick="(function(){ var code=document.getElementById('landingPromoInput').value.trim(); if(code){ window.location.hash='#register'; } else { alert('Masukkan kode promo terlebih dahulu!'); } })()" style="background:var(--secondary); color:#333; padding:12px 20px; border-radius:30px; border:none; font-weight:bold; cursor:pointer;">Daftar & Pakai Promo</button>
+        </div>
+        <p style="margin-top:10px; font-size:0.85rem; opacity:0.7;">💡 Setelah login, masuk ke menu <strong>Beli Kursus</strong> dan masukkan kode promo di sana</p>
+        </div>
         <footer style="background:rgba(0,0,0,0.3); border-radius:20px; padding:30px; margin-top:50px; color:white;">
         <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:30px;">
         <div><h4>ALFARUQ</h4><p>Kursus Islam praktis</p></div>
@@ -1000,34 +1009,15 @@ async function renderStorePage() {
         resetPrices();
         alert("🏷️ Kode promo dibatalkan");
     };
-}
-    // Bundle buy
+
+    // Bundle buy (dengan promo jika ada)
     if (document.getElementById("buyBundleBtn")) {
         document.getElementById("buyBundleBtn").onclick = async () => {
-            const promoDiscount = appliedPromo ? appliedPromo.discount_percent : 0;
+            const promoDiscount = appliedPromo ? appliedPromo.discount : 0;
             await purchaseBundle(promoDiscount, appliedPromo?.code);
             renderStorePage();
         };
     }
-
-    // Course buy buttons
-    document.querySelectorAll(".buy-course").forEach(btn => {
-        btn.onclick = async () => {
-            const id = parseInt(btn.getAttribute("data-id"));
-            const price = parseInt(btn.getAttribute("data-price"));
-            const promoCode = appliedPromo ? appliedPromo.code : null;
-            await purchaseCourse(id, price, promoCode);
-            renderStorePage();
-        };
-    });
-
-    document.querySelectorAll(".study-course").forEach(btn => {
-        btn.onclick = () => {
-            const id = parseInt(btn.getAttribute("data-id"));
-            currentCourseForUser = coursesData.find(c => c.id === id);
-            renderLearningView();
-        };
-    });
 }
 
 function getEmbedUrl(url) {
