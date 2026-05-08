@@ -246,6 +246,12 @@ async function loadUserProfile() {
         const { data: scoresData } = await supabaseClient.from('scores').select('*').eq('user_id', currentUser.id);
         currentUser.scores = scoresData || [];
     }
+    // Hitung jumlah referral
+   const { data: referralCount } = await supabaseClient
+    .from('profiles')
+    .select('user_id', { count: 'exact', head: true })
+    .eq('referred_by', currentUser.id);
+        currentUser.referralCount = referralCount?.length || 0;
 }
 
 async function checkAdminStatus() {
@@ -3567,7 +3573,121 @@ async function renderGraduatedStudents() {
         };
     }
 }
-
+function renderResellerInfo() {
+    // Hitung level berdasarkan jumlah referral
+    let level = "BASIC";
+    let komisiPersen = 20;
+    let nextLevel = "BRONZE (50 referral)";
+    
+    const totalReferral = currentUser.referralCount || 0;
+    
+    if (totalReferral >= 5000) {
+        level = "DIAMOND";
+        komisiPersen = 50;
+        nextLevel = "Maksimal";
+    } else if (totalReferral >= 1000) {
+        level = "PLATINUM";
+        komisiPersen = 40;
+        nextLevel = "DIAMOND (5000 referral)";
+    } else if (totalReferral >= 500) {
+        level = "GOLD";
+        komisiPersen = 35;
+        nextLevel = "PLATINUM (1000 referral)";
+    } else if (totalReferral >= 100) {
+        level = "SILVER";
+        komisiPersen = 30;
+        nextLevel = "GOLD (500 referral)";
+    } else if (totalReferral >= 50) {
+        level = "BRONZE";
+        komisiPersen = 25;
+        nextLevel = "SILVER (100 referral)";
+    } else {
+        level = "BASIC";
+        komisiPersen = 20;
+        nextLevel = "BRONZE (50 referral)";
+    }
+    
+    let html = `
+        <div class="tabs">
+            <div class="tab" id="backToDash">Kembali</div>
+            <div class="tab active">🤝 Program Reseller</div>
+        </div>
+        
+        <div class="card">
+            <h2>Status Reseller Anda</h2>
+            
+            ${currentUser.canRefer ? `
+                <div class="alert-success" style="padding:15px; border-radius:12px;">
+                    <strong>✅ Status: AKTIF</strong><br>
+                    Kode Referral: <code style="font-size:1.2rem;">${currentUser.referralCode}</code>
+                    <button onclick="copyReferral()" class="btn-copy" style="margin-left:10px;">📋 Salin Link</button>
+                </div>
+            ` : `
+                <div class="alert-warning" style="padding:15px; border-radius:12px;">
+                    <strong>🔒 Status: BELUM AKTIF</strong><br>
+                    Selesaikan 1 kursus penuh dengan nilai minimal 70 untuk mengaktifkan program reseller.
+                </div>
+            `}
+            
+            <div style="margin-top:20px;">
+                <p><strong>💰 Total Komisi:</strong> <span style="font-size:1.5rem; color:#27ae60;">${formatRupiah(currentUser.commission || 0)}</span></p>
+                <p><strong>👥 Jumlah Referral:</strong> ${totalReferral} orang</p>
+                <p><strong>🏆 Level Saat Ini:</strong> <span style="background:#f4a261; color:#333; padding:5px 15px; border-radius:20px;">${level}</span></p>
+                <p><strong>📊 Komisi:</strong> ${komisiPersen}% dari setiap pembelian kursus referral</p>
+                ${nextLevel !== "Maksimal" ? `<p><strong>🎯 Target Level Berikutnya:</strong> ${nextLevel}</p>` : '<p>✨ Anda sudah mencapai level tertinggi!</p>'}
+            </div>
+        </div>
+        
+        <div class="card">
+            <h3>📊 Level Komisi Reseller</h3>
+            <table class="commission-table">
+                <thead>
+                    <tr style="background:#1e6b3b; color:white;">
+                        <th>Level</th>
+                        <th>Referral</th>
+                        <th>Komisi</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr style="${level === 'BASIC' ? 'background:#d4edda; font-weight:bold;' : ''}">
+                        <td>📍 BASIC</td><td>0-49</td><td>20%</td>
+                    </tr>
+                    <tr style="${level === 'BRONZE' ? 'background:#d4edda; font-weight:bold;' : ''}">
+                        <td>📍 BRONZE</td><td>50-99</td><td>25%</td>
+                    </tr>
+                    <tr style="${level === 'SILVER' ? 'background:#d4edda; font-weight:bold;' : ''}">
+                        <td>📍 SILVER</td><td>100-499</td><td>30%</td>
+                    </tr>
+                    <tr style="${level === 'GOLD' ? 'background:#d4edda; font-weight:bold;' : ''}">
+                        <td>📍 GOLD</td><td>500-999</td><td>35%</td>
+                    </tr>
+                    <tr style="${level === 'PLATINUM' ? 'background:#d4edda; font-weight:bold;' : ''}">
+                        <td>📍 PLATINUM</td><td>1000-4999</td><td>40%</td>
+                    </tr>
+                    <tr style="${level === 'DIAMOND' ? 'background:#d4edda; font-weight:bold;' : ''}">
+                        <td>📍 DIAMOND</td><td>5000+</td><td>50%</td>
+                     </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="card">
+            <h3>📌 Cara Mendapatkan Komisi</h3>
+            <ul style="margin-left:20px; line-height:1.8;">
+                <li>✅ Bagikan kode referral Anda ke teman/media sosial</li>
+                <li>✅ Komisi <strong>${komisiPersen}%</strong> akan masuk ke wallet Anda JIKA referral membeli <strong>KURSUS</strong></li>
+                <li>⚠️ Komisi <strong>TIDAK</strong> didapat dari top up wallet atau pembelian PPOB</li>
+            </ul>
+        </div>
+        
+        <button id="backBtn" class="btn-back">Kembali ke Dashboard</button>
+    `;
+    
+    document.getElementById("appRoot").innerHTML = html;
+    document.getElementById("backToDash").onclick = () => renderUserDashboard();
+    document.getElementById("backBtn").onclick = () => renderUserDashboard();
+}
+    
 // ======================== ROUTING ========================
 async function route() {
     let hash = window.location.hash.slice(1);
