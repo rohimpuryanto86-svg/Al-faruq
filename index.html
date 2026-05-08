@@ -228,7 +228,8 @@ async function loadBadges() {
 
 async function loadUserProfile() {
     if (!currentUser) return;
-    const { data } = await supabaseClient.from('profiles').select('*').eq('user_id', currentUser.id).single();
+    const { data, error: profileErr } = await supabaseClient.from('profiles').select('*').eq('user_id', currentUser.id).single();
+    if (profileErr) { console.warn('loadUserProfile error:', profileErr.message, '— kemungkinan RLS memblokir SELECT profiles.'); }
     if (data) {
         currentUser.profile = data;
         currentUser.name = data.full_name;
@@ -799,10 +800,11 @@ function renderLoginForm() {
         const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
         if (error) { alert("Login gagal: " + error.message); btn.disabled = false; btn.textContent = "Login"; return; }
         currentUser = data.user;
-        await loadUserProfile();
-        await checkAdminStatus();
+        try { await loadUserProfile(); } catch(profileErr) { console.warn("loadUserProfile error:", profileErr); }
+        try { await checkAdminStatus(); } catch(adminErr) { console.warn("checkAdminStatus error:", adminErr); }
+        // Blokir hanya jika profil berhasil dimuat dan status jelas diketahui
         if (currentUser.status === 'banned') { alert("Akun Anda telah diblokir. Hubungi admin."); await supabaseClient.auth.signOut(); window.location.hash = "#landing"; return; }
-        if (currentUser.status !== 'approved') { alert("Akun Anda belum disetujui admin. Silakan tunggu verifikasi."); await supabaseClient.auth.signOut(); window.location.hash = "#landing"; return; }
+        if (currentUser.profile && currentUser.status === 'pending') { alert("Akun Anda belum disetujui admin. Silakan tunggu verifikasi."); await supabaseClient.auth.signOut(); window.location.hash = "#landing"; return; }
         window.location.hash = "#dashboard";
     };
 }
