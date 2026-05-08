@@ -249,12 +249,15 @@ async function loadUserProfile() {
         currentUser.scores = scoresData || [];
     }
     // Hitung jumlah referral - ambil semua user yang referred_by = id user ini
-   const { data: referralList } = await supabaseClient
-    .from('profiles')
-    .select('user_id, full_name, created_at, status')
-    .eq('referred_by', currentUser.id);
-        currentUser.referralCount = referralList?.length || 0;
-        currentUser.referralList = referralList || [];
+    const { data: referralList, error: referralErr } = await supabaseClient
+        .from('profiles')
+        .select('user_id, full_name, created_at, status')
+        .eq('referred_by', currentUser.id);
+    if (referralErr) {
+        console.warn('⚠️ Gagal load referral list (mungkin RLS):', referralErr.message);
+    }
+    currentUser.referralCount = referralList?.length || 0;
+    currentUser.referralList = referralList || [];
 }
 
 async function checkAdminStatus() {
@@ -877,7 +880,7 @@ async function renderUserDashboard() {
     document.getElementById("ppobTab").onclick = () => renderPPOBPage();
     document.getElementById("certificateTab").onclick = () => renderCertificatePage();
     document.getElementById("reportTab").onclick = () => renderReportPage();
-    document.getElementById("resellerTab").onclick = () => renderResellerInfo();
+    document.getElementById("resellerTab").onclick = async () => await renderResellerInfo();
     document.getElementById("guideTab").onclick = () => renderGuidePage();
     document.getElementById("logoutTab").onclick = async () => { 
         await supabaseClient.auth.signOut(); 
@@ -3861,7 +3864,27 @@ async function renderGraduatedStudents() {
         };
     }
 }
-function renderResellerInfo() {
+async function renderResellerInfo() {
+    // Tampilkan loading sementara data di-fetch
+    document.getElementById("appRoot").innerHTML = `<div style="text-align:center; padding:80px 20px; color:white;"><div style="font-size:3rem;">⏳</div><p>Memuat data referral...</p></div>`;
+
+    // Re-fetch data referral langsung dari DB setiap kali halaman ini dibuka
+    // Ini penting karena RLS mungkin memblokir saat login, atau data baru masuk setelah login
+    try {
+        const { data: freshReferralList, error: refErr } = await supabaseClient
+            .from('profiles')
+            .select('user_id, full_name, created_at, status')
+            .eq('referred_by', currentUser.id);
+        if (refErr) {
+            console.warn('⚠️ Gagal fetch referral list:', refErr.message);
+        } else {
+            currentUser.referralCount = freshReferralList?.length || 0;
+            currentUser.referralList = freshReferralList || [];
+        }
+    } catch(e) {
+        console.warn('renderResellerInfo fetch error:', e);
+    }
+
     // Hitung level berdasarkan jumlah referral
     let level = "BASIC";
     let komisiPersen = 20;
