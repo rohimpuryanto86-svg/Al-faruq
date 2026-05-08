@@ -732,20 +732,49 @@ function renderRegisterForm(isBundle = false) {
         // Jika ada kode referral, cari user_id pemilik kode tersebut lalu simpan ke referred_by
         if (referralCode && signUpData?.user) {
             try {
-                const { data: referrerProfile } = await supabaseClient
+                // Cari profil pemilik kode referral
+                const { data: referrerProfile, error: referrerErr } = await supabaseClient
                     .from('profiles')
                     .select('user_id')
                     .eq('referral_code', referralCode)
                     .single();
-                if (referrerProfile && referrerProfile.user_id) {
-                    // Update profil user baru dengan referred_by = user_id si referrer
-                    // Tunggu sebentar agar trigger Supabase sempat membuat profil
-                    await new Promise(r => setTimeout(r, 1500));
-                    await supabaseClient.from('profiles').update({ referred_by: referrerProfile.user_id }).eq('user_id', signUpData.user.id);
-                    
-                    // Tambah komisi ke referrer (jika user beli kursus, komisi dihitung di purchaseCourse)
-                    // Di sini kita hanya catat siapa yang mereferensikan
-                    console.log('Referral tercatat: ' + referralCode + ' → ' + referrerProfile.user_id);
+
+                if (referrerErr || !referrerProfile?.user_id) {
+                    console.warn('⚠️ Kode referral tidak ditemukan:', referralCode, referrerErr?.message);
+                } else {
+                    // Retry hingga 15x (maks ~7.5 detik) sampai profil user baru tersedia di DB
+                    // (profil dibuat oleh Supabase trigger secara async, perlu menunggu)
+                    let saved = false;
+                    for (let attempt = 0; attempt < 15; attempt++) {
+                        await new Promise(r => setTimeout(r, 500));
+                        const { data: newProfile } = await supabaseClient
+                            .from('profiles')
+                            .select('user_id, referred_by')
+                            .eq('user_id', signUpData.user.id)
+                            .single();
+
+                        if (newProfile) {
+                            // Hanya update jika referred_by belum terisi
+                            if (newProfile.referred_by) {
+                                console.log('ℹ️ referred_by sudah terisi sebelumnya, skip.');
+                                saved = true;
+                                break;
+                            }
+                            const { error: updateErr } = await supabaseClient
+                                .from('profiles')
+                                .update({ referred_by: referrerProfile.user_id })
+                                .eq('user_id', signUpData.user.id);
+
+                            if (!updateErr) {
+                                saved = true;
+                                console.log('✅ Referral tercatat:', referralCode, '→', referrerProfile.user_id, '(percobaan ke-' + (attempt + 1) + ')');
+                                break;
+                            } else {
+                                console.warn('Attempt ' + (attempt + 1) + ' gagal update referred_by:', updateErr.message);
+                            }
+                        }
+                    }
+                    if (!saved) console.warn('⚠️ Referral gagal tersimpan setelah 15 percobaan. Pastikan kolom referred_by ada dan RLS mengizinkan update.');
                 }
             } catch(refErr) { console.warn('Referral save error:', refErr); }
         }
