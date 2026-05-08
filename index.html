@@ -211,6 +211,7 @@ async function loadAppSettings() {
             if (s.key === 'early_bird_discount') settings.earlyBirdDiscount = parseInt(s.value);
             if (s.key === 'early_bird_end_date') settings.earlyBirdEndDate = s.value;
             if (s.key === 'default_whatsapp_number') settings.defaultWhatsappNumber = s.value;
+            // Pengaturan sertifikat disimpan langsung di appSettings object
         });
     }
 }
@@ -246,12 +247,13 @@ async function loadUserProfile() {
         const { data: scoresData } = await supabaseClient.from('scores').select('*').eq('user_id', currentUser.id);
         currentUser.scores = scoresData || [];
     }
-    // Hitung jumlah referral
-   const { data: referralCount } = await supabaseClient
+    // Hitung jumlah referral - ambil semua user yang referred_by = id user ini
+   const { data: referralList } = await supabaseClient
     .from('profiles')
-    .select('user_id', { count: 'exact', head: true })
+    .select('user_id, full_name, created_at, status')
     .eq('referred_by', currentUser.id);
-        currentUser.referralCount = referralCount?.length || 0;
+        currentUser.referralCount = referralList?.length || 0;
+        currentUser.referralList = referralList || [];
 }
 
 async function checkAdminStatus() {
@@ -697,13 +699,19 @@ function closeModal() { let m = document.getElementById("legalModal"); if (m) m.
 window.showModal = showModal; window.closeModal = closeModal;
 
 function renderRegisterForm(isBundle = false) {
+    // Ambil kode referral dari URL query param ?ref=...
+    const urlParams = new URLSearchParams(window.location.search);
+    const refCode = urlParams.get('ref') || '';
+    
     let html = `<div class="card"><h2>Daftar Akun Gratis</h2>
         <div class="alert-success">✅ Pendaftaran GRATIS! Setelah akun diverifikasi admin, kamu bisa top up wallet dan beli kursus.</div>
+        ${refCode ? `<div class="alert-info">🤝 Anda didaftarkan melalui link referral: <strong>${escapeHtml(refCode)}</strong></div>` : ''}
         <form id="registerForm"><div class="form-group"><label>Nama Lengkap</label><input type="text" id="regName" required></div>
         <div class="form-group"><label>Email</label><input type="email" id="regEmail" required></div>
         <div class="form-group"><label>Password (min 6 karakter)</label><input type="password" id="regPassword" required minlength="6"></div>
         <div class="form-group"><label>No WhatsApp</label><input type="text" id="regPhone" required></div>
         <div class="form-group"><label>Alamat (Opsional)</label><textarea id="regAddress" rows="2"></textarea></div>
+        <input type="hidden" id="regRefCode" value="${escapeHtml(refCode)}">
         <div class="checkbox-group"><input type="checkbox" id="agreeTerms" required> <label>Saya setuju <a href="#" onclick="showModal('terms'); return false;">Syarat & Ketentuan</a></label></div>
         <button type="submit" class="btn-success">Daftar Gratis</button>
         <button type="button" onclick="window.location.hash='#landing'" class="btn-back">Kembali</button></form></div>`;
@@ -715,8 +723,33 @@ function renderRegisterForm(isBundle = false) {
         btn.disabled = true; btn.textContent = "Mendaftar...";
         let email = document.getElementById("regEmail").value, password = document.getElementById("regPassword").value;
         let fullName = document.getElementById("regName").value, phone = document.getElementById("regPhone").value, address = document.getElementById("regAddress").value;
-        const { error } = await supabaseClient.auth.signUp({ email, password, options: { data: { full_name: fullName, phone, address, status: "pending", wallet_balance: 0, is_bundle: false, purchased_courses: [] } } });
+        let referralCode = document.getElementById("regRefCode").value.trim();
+        
+        // Daftar akun
+        const { data: signUpData, error } = await supabaseClient.auth.signUp({ email, password, options: { data: { full_name: fullName, phone, address, status: "pending", wallet_balance: 0, is_bundle: false, purchased_courses: [] } } });
         if (error) { alert("Registrasi gagal: " + error.message); btn.disabled = false; btn.textContent = "Daftar Gratis"; return; }
+        
+        // Jika ada kode referral, cari user_id pemilik kode tersebut lalu simpan ke referred_by
+        if (referralCode && signUpData?.user) {
+            try {
+                const { data: referrerProfile } = await supabaseClient
+                    .from('profiles')
+                    .select('user_id')
+                    .eq('referral_code', referralCode)
+                    .single();
+                if (referrerProfile && referrerProfile.user_id) {
+                    // Update profil user baru dengan referred_by = user_id si referrer
+                    // Tunggu sebentar agar trigger Supabase sempat membuat profil
+                    await new Promise(r => setTimeout(r, 1500));
+                    await supabaseClient.from('profiles').update({ referred_by: referrerProfile.user_id }).eq('user_id', signUpData.user.id);
+                    
+                    // Tambah komisi ke referrer (jika user beli kursus, komisi dihitung di purchaseCourse)
+                    // Di sini kita hanya catat siapa yang mereferensikan
+                    console.log('Referral tercatat: ' + referralCode + ' → ' + referrerProfile.user_id);
+                }
+            } catch(refErr) { console.warn('Referral save error:', refErr); }
+        }
+        
         alert("✅ Pendaftaran berhasil! Mohon tunggu verifikasi admin.");
         window.location.hash = "#login";
     };
@@ -829,10 +862,11 @@ function copyReferral() {
         return;
     }
     const baseUrl = window.location.href.split('?')[0].split('#')[0];
-    const referralUrl = `${baseUrl}?ref=${referralCode}`;
+    // Format: base?ref=CODE#register → sehingga saat hash berubah ke #register, URL search masih ada
+    const referralUrl = `${baseUrl}?ref=${referralCode}#register`;
     if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(referralUrl).then(() => {
-            alert(`✅ Link referral berhasil disalin!\n\n${referralUrl}`);
+            alert(`✅ Link referral berhasil disalin!\n\n${referralUrl}\n\nBagikan link ini kepada teman Anda.`);
         }).catch(() => {
             fallbackCopy(referralUrl);
         });
@@ -1568,6 +1602,21 @@ async function renderCertificatePage() {
                 // Signature blocks
                 const sig1x = 70, sig2x = W - 70;
                 const sigY = 185;
+                
+                // Ambil nama & tanda tangan dari settings
+                const certTeacherName = appSettings['cert_teacher_name'] || 'Pengajar';
+                const certDirectorName = appSettings['cert_director_name'] || 'Direktur';
+                const certTeacherSig = appSettings['cert_teacher_signature'] || '';
+                const certDirectorSig = appSettings['cert_director_signature'] || '';
+
+                // Tambahkan gambar tanda tangan jika ada
+                const sigImgH = 18, sigImgW = 50;
+                if (certTeacherSig && certTeacherSig.startsWith('data:')) {
+                    try { doc.addImage(certTeacherSig, 'PNG', sig1x - sigImgW/2, sigY - 6 - sigImgH - 4, sigImgW, sigImgH, undefined, 'FAST'); } catch(e) { console.warn('Sig teacher:', e); }
+                }
+                if (certDirectorSig && certDirectorSig.startsWith('data:')) {
+                    try { doc.addImage(certDirectorSig, 'PNG', sig2x - sigImgW/2, sigY - 6 - sigImgH - 4, sigImgW, sigImgH, undefined, 'FAST'); } catch(e) { console.warn('Sig director:', e); }
+                }
 
                 // Signature lines
                 doc.setDrawColor(...dark);
@@ -1578,8 +1627,15 @@ async function renderCertificatePage() {
                 doc.setFontSize(11);
                 doc.setFont('helvetica', 'bold');
                 doc.setTextColor(...dark);
-                doc.text('Pengajar', sig1x, sigY, { align: 'center' });
-                doc.text('Direktur', sig2x, sigY, { align: 'center' });
+                doc.text(certTeacherName, sig1x, sigY, { align: 'center' });
+                doc.text(certDirectorName, sig2x, sigY, { align: 'center' });
+                
+                // Label jabatan
+                doc.setFontSize(9);
+                doc.setFont('helvetica', 'normal');
+                doc.setTextColor(100, 100, 100);
+                doc.text('Pengajar', sig1x, sigY + 6, { align: 'center' });
+                doc.text('Direktur', sig2x, sigY + 6, { align: 'center' });
 
                 // Date center
                 doc.setFontSize(10);
@@ -2935,15 +2991,167 @@ async function renderPPOBMarkupSettings() {
 // ======================== OTHER ADMIN FUNCTIONS ========================
 async function renderGeneralSettings() {
     await loadAppSettings();
-    let html = `<div class="card"><h2>Pengaturan Umum</h2><form id="generalSettingsForm"><div class="form-group"><label>Nomor WhatsApp Admin</label><input type="text" id="whatsappNumber" value="${settings.defaultWhatsappNumber}"></div>
-        <button type="submit" class="btn-success">Simpan</button><button type="button" id="backBtn" class="btn-back">Kembali</button></form></div>`;
+    
+    // Ambil pengaturan sertifikat dari appSettings
+    const certTeacherName = appSettings['cert_teacher_name'] || '';
+    const certDirectorName = appSettings['cert_director_name'] || '';
+    const certTeacherSig = appSettings['cert_teacher_signature'] || '';
+    const certDirectorSig = appSettings['cert_director_signature'] || '';
+    
+    let html = `
+    <div class="card">
+        <h2>Pengaturan Umum</h2>
+        <form id="generalSettingsForm">
+            <div class="form-group">
+                <label>Nomor WhatsApp Admin</label>
+                <input type="text" id="whatsappNumber" value="${escapeHtml(settings.defaultWhatsappNumber)}" placeholder="6281234567890">
+            </div>
+            <button type="submit" class="btn-success">Simpan WhatsApp</button>
+            <button type="button" id="backBtn" class="btn-back">Kembali</button>
+        </form>
+    </div>
+    
+    <div class="card">
+        <h2>🎓 Pengaturan Sertifikat</h2>
+        <div class="alert-info">Atur nama dan tanda tangan yang tampil di sertifikat kelulusan peserta.</div>
+        
+        <form id="certSettingsForm">
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
+                <!-- Pengajar -->
+                <div>
+                    <h3 style="margin-bottom:15px;">✏️ Pengajar</h3>
+                    <div class="form-group">
+                        <label>Nama Pengajar</label>
+                        <input type="text" id="certTeacherName" value="${escapeHtml(certTeacherName)}" placeholder="Contoh: Ustadz Ahmad Fauzi, M.Pd">
+                    </div>
+                    <div class="form-group">
+                        <label>Upload Tanda Tangan Pengajar</label>
+                        <div style="border:2px dashed #ddd; border-radius:12px; padding:15px; text-align:center; margin-bottom:10px;">
+                            ${certTeacherSig ? `<img src="${certTeacherSig}" style="max-height:80px; max-width:200px; object-fit:contain; display:block; margin:0 auto 10px;" id="previewTeacherSig">` : `<div id="previewTeacherSig" style="color:#999; margin-bottom:10px;">Belum ada tanda tangan</div>`}
+                            <input type="file" id="teacherSigFile" accept="image/*" style="display:none;">
+                            <button type="button" onclick="document.getElementById('teacherSigFile').click()" class="btn-primary" style="font-size:0.85rem;">📷 Upload Tanda Tangan</button>
+                        </div>
+                        <input type="hidden" id="certTeacherSig" value="${escapeHtml(certTeacherSig)}">
+                    </div>
+                </div>
+                
+                <!-- Direktur -->
+                <div>
+                    <h3 style="margin-bottom:15px;">🏛️ Direktur</h3>
+                    <div class="form-group">
+                        <label>Nama Direktur</label>
+                        <input type="text" id="certDirectorName" value="${escapeHtml(certDirectorName)}" placeholder="Contoh: Dr. Rohim Puryanto, S.Pd.I">
+                    </div>
+                    <div class="form-group">
+                        <label>Upload Tanda Tangan Direktur</label>
+                        <div style="border:2px dashed #ddd; border-radius:12px; padding:15px; text-align:center; margin-bottom:10px;">
+                            ${certDirectorSig ? `<img src="${certDirectorSig}" style="max-height:80px; max-width:200px; object-fit:contain; display:block; margin:0 auto 10px;" id="previewDirectorSig">` : `<div id="previewDirectorSig" style="color:#999; margin-bottom:10px;">Belum ada tanda tangan</div>`}
+                            <input type="file" id="directorSigFile" accept="image/*" style="display:none;">
+                            <button type="button" onclick="document.getElementById('directorSigFile').click()" class="btn-primary" style="font-size:0.85rem;">📷 Upload Tanda Tangan</button>
+                        </div>
+                        <input type="hidden" id="certDirectorSig" value="${escapeHtml(certDirectorSig)}">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="alert-warning" style="margin-top:10px;">
+                💡 <strong>Tips tanda tangan:</strong> Upload foto tanda tangan di atas kertas putih, atau tanda tangan digital dengan latar belakang transparan (PNG). Ukuran ideal: 300×100px.
+            </div>
+            
+            <button type="submit" class="btn-success" style="margin-top:15px;">💾 Simpan Pengaturan Sertifikat</button>
+        </form>
+        
+        ${(certTeacherName || certDirectorName) ? `
+        <div style="margin-top:20px; padding:15px; background:#f8f9fa; border-radius:12px; border:1px solid #ddd;">
+            <h4 style="margin-bottom:10px; color:#1e6b3b;">👁️ Preview Tanda Tangan di Sertifikat</h4>
+            <div style="display:flex; justify-content:space-around; align-items:flex-end; padding:20px; background:white; border:1px solid #eee; border-radius:8px;">
+                <div style="text-align:center; width:45%;">
+                    ${certTeacherSig ? `<img src="${certTeacherSig}" style="max-height:60px; max-width:160px; object-fit:contain; display:block; margin:0 auto 5px;">` : '<div style="height:60px; display:flex; align-items:center; justify-content:center; color:#ccc; font-size:0.8rem;">Tanda tangan belum diupload</div>'}
+                    <div style="border-top:1px solid #333; padding-top:5px; font-size:0.9rem; font-weight:bold;">${escapeHtml(certTeacherName || 'Nama Pengajar')}</div>
+                    <div style="font-size:0.75rem; color:#666;">Pengajar</div>
+                </div>
+                <div style="text-align:center; width:45%;">
+                    ${certDirectorSig ? `<img src="${certDirectorSig}" style="max-height:60px; max-width:160px; object-fit:contain; display:block; margin:0 auto 5px;">` : '<div style="height:60px; display:flex; align-items:center; justify-content:center; color:#ccc; font-size:0.8rem;">Tanda tangan belum diupload</div>'}
+                    <div style="border-top:1px solid #333; padding-top:5px; font-size:0.9rem; font-weight:bold;">${escapeHtml(certDirectorName || 'Nama Direktur')}</div>
+                    <div style="font-size:0.75rem; color:#666;">Direktur</div>
+                </div>
+            </div>
+        </div>
+        ` : ''}
+    </div>`;
+    
     document.getElementById("adminContent").innerHTML = html;
     document.getElementById("backBtn").onclick = () => renderAdminDashboard();
+    
+    // Handle WhatsApp form
     document.getElementById("generalSettingsForm").onsubmit = async (e) => {
         e.preventDefault();
         await supabaseClient.from('app_settings').upsert({ key: 'default_whatsapp_number', value: document.getElementById("whatsappNumber").value }, { onConflict: 'key' });
         settings.defaultWhatsappNumber = document.getElementById("whatsappNumber").value;
-        alert("Pengaturan disimpan!"); renderGeneralSettings();
+        alert("Pengaturan WhatsApp disimpan!"); renderGeneralSettings();
+    };
+    
+    // Preview tanda tangan pengajar saat upload
+    document.getElementById("teacherSigFile").addEventListener("change", (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            const dataUrl = ev.target.result;
+            document.getElementById("certTeacherSig").value = dataUrl;
+            const prev = document.getElementById("previewTeacherSig");
+            if (prev.tagName === 'IMG') { prev.src = dataUrl; }
+            else { prev.outerHTML = `<img src="${dataUrl}" id="previewTeacherSig" style="max-height:80px; max-width:200px; object-fit:contain; display:block; margin:0 auto 10px;">`; }
+        };
+        reader.readAsDataURL(file);
+    });
+    
+    // Preview tanda tangan direktur saat upload
+    document.getElementById("directorSigFile").addEventListener("change", (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            const dataUrl = ev.target.result;
+            document.getElementById("certDirectorSig").value = dataUrl;
+            const prev = document.getElementById("previewDirectorSig");
+            if (prev.tagName === 'IMG') { prev.src = dataUrl; }
+            else { prev.outerHTML = `<img src="${dataUrl}" id="previewDirectorSig" style="max-height:80px; max-width:200px; object-fit:contain; display:block; margin:0 auto 10px;">`; }
+        };
+        reader.readAsDataURL(file);
+    });
+    
+    // Handle Certificate Settings form
+    document.getElementById("certSettingsForm").onsubmit = async (e) => {
+        e.preventDefault();
+        const btn = e.target.querySelector('button[type="submit"]');
+        btn.disabled = true; btn.textContent = "Menyimpan...";
+        
+        try {
+            const teacherName = document.getElementById("certTeacherName").value;
+            const directorName = document.getElementById("certDirectorName").value;
+            const teacherSig = document.getElementById("certTeacherSig").value;
+            const directorSig = document.getElementById("certDirectorSig").value;
+            
+            await supabaseClient.from('app_settings').upsert({ key: 'cert_teacher_name', value: teacherName }, { onConflict: 'key' });
+            await supabaseClient.from('app_settings').upsert({ key: 'cert_director_name', value: directorName }, { onConflict: 'key' });
+            if (teacherSig) await supabaseClient.from('app_settings').upsert({ key: 'cert_teacher_signature', value: teacherSig }, { onConflict: 'key' });
+            if (directorSig) await supabaseClient.from('app_settings').upsert({ key: 'cert_director_signature', value: directorSig }, { onConflict: 'key' });
+            
+            // Update local appSettings cache
+            appSettings['cert_teacher_name'] = teacherName;
+            appSettings['cert_director_name'] = directorName;
+            if (teacherSig) appSettings['cert_teacher_signature'] = teacherSig;
+            if (directorSig) appSettings['cert_director_signature'] = directorSig;
+            
+            alert("✅ Pengaturan sertifikat berhasil disimpan!");
+            await loadAppSettings();
+            renderGeneralSettings();
+        } catch(err) {
+            alert("❌ Gagal: " + err.message);
+        } finally {
+            btn.disabled = false; btn.textContent = "💾 Simpan Pengaturan Sertifikat";
+        }
     };
 }
 
@@ -3681,6 +3889,39 @@ function renderResellerInfo() {
         </div>
         
         <button id="backBtn" class="btn-back">Kembali ke Dashboard</button>
+        
+        <div class="card">
+            <h3>👥 Daftar Referral Anda</h3>
+            ${currentUser.canRefer ? `
+                ${(currentUser.referralList && currentUser.referralList.length > 0) ? `
+                    <div class="alert-success" style="margin-bottom:15px;">Total: <strong>${currentUser.referralList.length} orang</strong> mendaftar via link referral Anda.</div>
+                    <div style="overflow-x:auto;">
+                        <table class="commission-table">
+                            <thead>
+                                <tr style="background:#1e6b3b; color:white;">
+                                    <th>No</th>
+                                    <th>Nama</th>
+                                    <th>Status Akun</th>
+                                    <th>Tanggal Daftar</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${(currentUser.referralList || []).map((r, i) => `
+                                    <tr>
+                                        <td style="text-align:center;">${i+1}</td>
+                                        <td>${escapeHtml(r.full_name || '-')}</td>
+                                        <td style="color:${r.status === 'approved' ? '#27ae60' : r.status === 'banned' ? '#e74c3c' : '#f39c12'}; font-weight:bold;">
+                                            ${r.status === 'approved' ? '✅ Aktif' : r.status === 'banned' ? '🚫 Banned' : '⏳ Pending'}
+                                        </td>
+                                        <td>${r.created_at ? new Date(r.created_at).toLocaleDateString('id-ID', {day:'numeric',month:'long',year:'numeric'}) : '-'}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                ` : `<div class="alert-info">Belum ada yang mendaftar via link referral Anda. Bagikan link Anda sekarang!</div>`}
+            ` : `<div class="alert-warning">Aktifkan program reseller terlebih dahulu untuk melihat daftar referral.</div>`}
+        </div>
     `;
     
     document.getElementById("appRoot").innerHTML = html;
@@ -3700,13 +3941,29 @@ async function route() {
     else if (hash === "dashboard") { if (currentUser) renderUserDashboard(); else window.location.hash = "#login"; }
     else if (hash === "admin") renderAdminLogin();
     else if (hash === "admin-dashboard") { if (isAdmin) renderAdminDashboard(); else { alert("Akses ditolak"); window.location.hash = "#landing"; } }
-    else renderLandingPage();
+    else {
+        // Cek jika ada ?ref= di URL tanpa hash, arahkan ke register
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('ref')) { renderRegisterForm(false); }
+        else renderLandingPage();
+    }
 }
 
 // ======================== INIT ========================
 window.addEventListener("hashchange", route);
 let saved = localStorage.getItem("darkMode");
 if (saved === "true") document.documentElement.setAttribute("data-theme", "dark");
+
+// Jika ada ?ref= di URL tanpa hash aktif, set hash ke #register
+(function() {
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get('ref');
+    const hash = window.location.hash.slice(1);
+    if (ref && (!hash || hash === '' || hash === 'landing')) {
+        window.location.hash = '#register';
+    }
+})();
+
 route();
 </script>
 </body>
