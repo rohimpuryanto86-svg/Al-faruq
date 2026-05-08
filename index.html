@@ -305,21 +305,20 @@ function isCourseOwned(courseId) {
     return false;
 }
 
-async function purchaseCourse(courseId, price, promoCode = null) {
+async function purchaseCourse(courseId, price, promo = null) {
     if (currentUser.walletBalance < price) {
         alert(`Saldo tidak cukup! Saldo: ${formatRupiah(currentUser.walletBalance)}`);
         return false;
     }
     
     const course = coursesData.find(c => c.id === courseId);
-    const originalPrice = getDiscountedPrice(course.price);
-    const promoInfo = promoCode ? ` (Kode promo: ${promoCode})` : '';
-    if (!confirm(`Beli ${course?.title} seharga ${formatRupiah(price)}?${promoInfo}`)) return false;
+    let promoText = promo ? ` (dengan diskon ${promo.discount}%)` : '';
+    if (!confirm(`Beli ${course?.title} seharga ${formatRupiah(price)}${promoText}?`)) return false;
     
     const newBalance = currentUser.walletBalance - price;
     const newPurchased = [...(currentUser.purchasedCourses || []), courseId];
     
-    // 1. Update saldo user
+    // Update saldo user
     const { error: updateError } = await supabaseClient
         .from('profiles')
         .update({ 
@@ -335,36 +334,39 @@ async function purchaseCourse(courseId, price, promoCode = null) {
         return false;
     }
     
-    // 2. CATAT TRANSAKSI KE SALES_TRANSACTIONS (dengan promo code)
-    const { error: salesError } = await supabaseClient
-        .from('sales_transactions')
-        .insert({
-            user_id: currentUser.id,
-            user_name: currentUser.name,
-            course_id: courseId,
-            course_title: course.title,
-            amount: originalPrice,
-            final_amount: price,
-            promo_code: promoCode || null,
-            discount_amount: originalPrice - price,
-            created_at: new Date().toISOString()
-        });
+    // Catat transaksi
+    await supabaseClient.from('sales_transactions').insert({
+        user_id: currentUser.id,
+        user_name: currentUser.name,
+        course_id: courseId,
+        course_title: course.title,
+        amount: price,
+        final_amount: price,
+        promo_code: promo?.code || null,
+        promo_discount: promo?.discount || null,
+        created_at: new Date().toISOString()
+    });
     
-    if (salesError) {
-        console.error("Gagal catat transaksi:", salesError);
-    } else {
-        console.log("✅ Transaksi tercatat di sales_transactions");
+    // Update usage count promo jika ada
+    if (promo) {
+        const { data: promoData } = await supabaseClient
+            .from('promo_codes')
+            .select('used_count')
+            .eq('id', promo.id)
+            .single();
+        
+        await supabaseClient
+            .from('promo_codes')
+            .update({ used_count: (promoData?.used_count || 0) + 1 })
+            .eq('id', promo.id);
     }
     
-    // 3. Update local variable
     currentUser.walletBalance = newBalance;
     currentUser.purchasedCourses = newPurchased;
     
-    const savedText = price < originalPrice ? ` (hemat ${formatRupiah(originalPrice - price)})` : '';
-    alert(`✅ Berhasil membeli ${course?.title} seharga ${formatRupiah(price)}${savedText}!\nSaldo: ${formatRupiah(newBalance)}`);
+    alert(`✅ Berhasil membeli ${course?.title}! Saldo: ${formatRupiah(newBalance)}`);
     return true;
 }
-
 async function purchaseBundle(promoDiscount = 0, promoCode = null) {
     let baseBundle = getDiscountedPrice(800000);
     let bundlePrice = promoDiscount > 0 ? Math.round(baseBundle * (1 - promoDiscount / 100)) : baseBundle;
@@ -804,166 +806,201 @@ async function renderUserDashboard() {
         window.location.hash = "#landing"; 
     };
 }
-
 async function renderStorePage() {
+    // State untuk promo
+    let appliedPromo = null;
+    
     let html = `
         <div class="tabs">
             <div class="tab" id="backToDash">Kembali</div>
             <div class="tab active">Beli Kursus</div>
         </div>
-
+        
         <div class="card" style="text-align:center;">
             <h2>Beli Kursus dengan Wallet</h2>
-            <p>Saldo Anda: <strong style="color:#27ae60;">${formatRupiah(currentUser.walletBalance)}</strong></p>
-
-            <!-- PROMO CODE INPUT -->
-            <div style="max-width:400px; margin:15px auto;">
-                <div style="display:flex; gap:8px; align-items:center;">
-                    <input type="text" id="promoCodeInput" placeholder="Punya kode promo? Masukkan di sini"
-                        style="flex:1; padding:10px 16px; border-radius:30px; border:1px solid #ddd; font-size:0.95rem;">
-                    <button id="applyPromoBtn" class="btn-primary" style="white-space:nowrap;">Pakai</button>
-                    <button id="clearPromoBtn" class="btn-danger" style="display:none; white-space:nowrap;">✕ Hapus</button>
-                </div>
-                <div id="promoStatus" style="margin-top:8px; font-size:0.9rem;"></div>
-            </div>
-
-            ${!currentUser.isBundle
-                ? `<button id="buyBundleBtn" class="btn-warning" style="background:#f39c12; margin-top:10px;">
-                        Beli Bundle (<span id="bundlePriceDisplay">${formatRupiah(getDiscountedPrice(800000))}</span>) - Akses Semua Kursus
-                   </button>`
-                : '<div class="alert-success">Anda sudah memiliki BUNDLE! Akses semua kursus gratis.</div>'
-            }
+            <p>Saldo Anda: <strong>${formatRupiah(currentUser.walletBalance)}</strong></p>
+            ${!currentUser.isBundle ? `<button id="buyBundleBtn" class="btn-warning" style="background:#f39c12;">Beli Bundle (${formatRupiah(getDiscountedPrice(800000))}) - Akses Semua Kursus</button>` : '<div class="alert-success">Anda sudah memiliki BUNDLE! Akses semua kursus gratis.</div>'}
         </div>
-
+        
+        <!-- FORM KODE PROMO -->
+        <div class="card" style="margin-bottom:20px;">
+            <h3>🏷️ Punya Kode Promo?</h3>
+            <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                <input type="text" id="promoCodeInput" placeholder="Masukkan kode promo" style="flex:1; padding:10px; border-radius:8px; border:1px solid #ddd;">
+                <button id="applyPromoBtn" class="btn-edit">Terapkan</button>
+                <button id="clearPromoBtn" class="btn-danger">Batal</button>
+            </div>
+            <div id="promoMessage" style="margin-top:10px;"></div>
+        </div>
+        
         <div class="course-grid" id="courseGrid">
-            ${coursesData.map(c => {
+            ${coursesData.map((c, index) => {
                 const owned = isCourseOwned(c.id);
-                const basePrice = getDiscountedPrice(c.price);
-                return `<div class="course-card ${owned ? 'owned' : ''}" data-course-id="${c.id}" data-base-price="${basePrice}" data-original-price="${c.price}">
-                    <div class="course-icon">${c.icon || '📚'}</div>
-                    <div class="course-title">${c.title}</div>
-                    <p>${c.description || ''}</p>
-                    ${owned
-                        ? `<div class="owned-badge">Dimiliki</div>
-                           <div class="course-price">${formatRupiah(c.price)}</div>`
-                        : `<div class="lock-badge">Belum dimiliki</div>
-                           <div class="course-price">
-                               ${c.price !== basePrice ? `<span class="price-old" style="font-size:0.85rem; text-decoration:line-through; color:#999;">${formatRupiah(c.price)}</span><br>` : ''}
-                               <span class="price-final">${formatRupiah(basePrice)}</span>
-                           </div>`
-                    }
-                    <div class="btn-group">
-                        ${owned
-                            ? `<button class="btn-primary study-course" data-id="${c.id}">Belajar</button>`
-                            : `<button class="btn-buy buy-course" style="background:#27ae60;" data-id="${c.id}" data-price="${basePrice}">
-                                   Beli (<span class="btn-price-label">${formatRupiah(basePrice)}</span>)
-                               </button>`
-                        }
-                        ${c.telegram_group ? `<a href="${c.telegram_group}" target="_blank" class="btn-telegram">Grup Diskusi</a>` : ''}
+                const price = getDiscountedPrice(c.price);
+                return `
+                    <div class="course-card ${owned ? 'owned' : ''}" data-course-id="${c.id}" data-original-price="${price}">
+                        <div class="course-icon">${c.icon || '📚'}</div>
+                        <div class="course-title">${c.title}</div>
+                        <p>${c.description || ''}</p>
+                        <div class="course-price" id="price-${c.id}">${formatRupiah(price)}</div>
+                        ${owned ? '<div class="owned-badge">Dimiliki</div>' : '<div class="lock-badge">Belum dimiliki</div>'}
+                        <div class="btn-group">
+                            ${owned ? 
+                                `<button class="btn-primary study-course" data-id="${c.id}">Belajar</button>` : 
+                                `<button class="btn-buy buy-course" data-id="${c.id}" data-price="${price}">Beli (${formatRupiah(price)})</button>`
+                            }
+                            ${c.telegram_group ? `<a href="${c.telegram_group}" target="_blank" class="btn-telegram">Grup Diskusi</a>` : ''}
+                        </div>
                     </div>
-                </div>`;
+                `;
             }).join('')}
         </div>
     `;
-
+    
     document.getElementById("appRoot").innerHTML = html;
+    
+    // Event listeners
     document.getElementById("backToDash").onclick = () => renderUserDashboard();
-
-    // Applied promo state
-    let appliedPromo = null; // { code, discount_percent }
-
-    function applyPromoToUI() {
-        const discount = appliedPromo ? appliedPromo.discount_percent : 0;
-
-        // Update each course card
-        document.querySelectorAll(".course-card[data-base-price]").forEach(card => {
-            const basePrice = parseInt(card.getAttribute("data-base-price"));
-            const originalPrice = parseInt(card.getAttribute("data-original-price"));
-            const finalPrice = discount > 0 ? Math.round(basePrice * (1 - discount / 100)) : basePrice;
-
-            const priceEl = card.querySelector(".price-final");
-            const oldPriceEl = card.querySelector(".price-old");
-            const btn = card.querySelector(".buy-course");
-
-            if (priceEl) priceEl.textContent = formatRupiah(finalPrice);
-            if (oldPriceEl) oldPriceEl.textContent = formatRupiah(originalPrice);
-
-            // Show strikethrough if any discount applies
-            if (oldPriceEl) {
-                oldPriceEl.style.display = (finalPrice < originalPrice) ? 'inline' : 'none';
-            }
-
-            if (btn) {
-                btn.setAttribute("data-price", finalPrice);
-                const label = btn.querySelector(".btn-price-label");
-                if (label) label.textContent = formatRupiah(finalPrice);
-            }
-        });
-
-        // Update bundle price
-        const bundleDisplay = document.getElementById("bundlePriceDisplay");
-        if (bundleDisplay) {
-            const baseBundle = getDiscountedPrice(800000);
-            const finalBundle = discount > 0 ? Math.round(baseBundle * (1 - discount / 100)) : baseBundle;
-            bundleDisplay.textContent = formatRupiah(finalBundle);
-        }
+    
+    if (document.getElementById("buyBundleBtn")) {
+        document.getElementById("buyBundleBtn").onclick = async () => { 
+            await purchaseBundle(); 
+            renderStorePage(); 
+        };
     }
-
-    // Apply promo button
-    document.getElementById("applyPromoBtn").onclick = async () => {
-        const code = document.getElementById("promoCodeInput").value.trim().toUpperCase();
-        const statusEl = document.getElementById("promoStatus");
-
-        if (!code) {
-            statusEl.innerHTML = '<span style="color:#e74c3c;">⚠️ Masukkan kode promo terlebih dahulu.</span>';
-            return;
-        }
-
-        statusEl.innerHTML = '<span style="color:#888;">🔍 Memeriksa kode...</span>';
-
-        const { data: promos, error } = await supabaseClient
+    
+    // Event listener untuk tombol beli kursus
+    document.querySelectorAll(".buy-course").forEach(btn => {
+        btn.onclick = async () => {
+            let id = parseInt(btn.getAttribute("data-id"));
+            let price = parseInt(btn.getAttribute("data-price"));
+            
+            // Jika ada promo, gunakan harga setelah diskon
+            if (appliedPromo) {
+                const originalPrice = price;
+                price = Math.round(originalPrice * (1 - appliedPromo.discount / 100));
+            }
+            
+            await purchaseCourse(id, price, appliedPromo);
+            renderStorePage();
+        };
+    });
+    
+    document.querySelectorAll(".study-course").forEach(btn => {
+        btn.onclick = () => {
+            let id = parseInt(btn.getAttribute("data-id"));
+            currentCourseForUser = coursesData.find(c => c.id === id);
+            renderLearningView();
+        };
+    });
+    
+    // ========== FUNGSI PROMO ==========
+    async function checkPromo(code) {
+        const { data, error } = await supabaseClient
             .from('promo_codes')
             .select('*')
-            .eq('code', code)
+            .eq('code', code.toUpperCase())
             .eq('is_active', true)
-            .limit(1);
-
-        if (error || !promos || promos.length === 0) {
-            statusEl.innerHTML = '<span style="color:#e74c3c;">❌ Kode promo tidak valid atau sudah tidak aktif.</span>';
-            appliedPromo = null;
-            applyPromoToUI();
-            document.getElementById("clearPromoBtn").style.display = "none";
+            .single();
+        
+        if (error || !data) {
+            return { valid: false, message: "Kode promo tidak valid atau sudah tidak aktif" };
+        }
+        
+        if (data.valid_until && new Date(data.valid_until) < new Date()) {
+            return { valid: false, message: "Kode promo sudah kadaluarsa" };
+        }
+        
+        if (data.usage_limit && data.used_count >= data.usage_limit) {
+            return { valid: false, message: "Kode promo sudah mencapai batas penggunaan" };
+        }
+        
+        return { 
+            valid: true, 
+            discount: data.discount_percent,
+            code: data.code,
+            id: data.id,
+            message: `✅ Kode promo berhasil! Diskon ${data.discount_percent}%`
+        };
+    }
+    
+    function updatePricesWithDiscount(discountPercent) {
+        coursesData.forEach(c => {
+            const originalPrice = getDiscountedPrice(c.price);
+            const discountedPrice = Math.round(originalPrice * (1 - discountPercent / 100));
+            const priceEl = document.getElementById(`price-${c.id}`);
+            if (priceEl) {
+                priceEl.innerHTML = `<span style="text-decoration:line-through; color:#999;">${formatRupiah(originalPrice)}</span> → ${formatRupiah(discountedPrice)}`;
+            }
+            const buyBtn = document.querySelector(`.buy-course[data-id="${c.id}"]`);
+            if (buyBtn) {
+                buyBtn.setAttribute("data-price", discountedPrice);
+                buyBtn.innerHTML = `Beli (${formatRupiah(discountedPrice)})`;
+            }
+        });
+        
+        // Update bundle price
+        const bundlePrice = getDiscountedPrice(800000);
+        const discountedBundlePrice = Math.round(bundlePrice * (1 - discountPercent / 100));
+        const bundleBtn = document.getElementById("buyBundleBtn");
+        if (bundleBtn && !currentUser.isBundle) {
+            bundleBtn.innerHTML = `Beli Bundle (${formatRupiah(discountedBundlePrice)}) - Akses Semua Kursus`;
+            bundleBtn.setAttribute("data-price", discountedBundlePrice);
+        }
+    }
+    
+    function resetPrices() {
+        coursesData.forEach(c => {
+            const originalPrice = getDiscountedPrice(c.price);
+            const priceEl = document.getElementById(`price-${c.id}`);
+            if (priceEl) {
+                priceEl.innerHTML = formatRupiah(originalPrice);
+            }
+            const buyBtn = document.querySelector(`.buy-course[data-id="${c.id}"]`);
+            if (buyBtn) {
+                buyBtn.setAttribute("data-price", originalPrice);
+                buyBtn.innerHTML = `Beli (${formatRupiah(originalPrice)})`;
+            }
+        });
+        
+        const bundlePrice = getDiscountedPrice(800000);
+        const bundleBtn = document.getElementById("buyBundleBtn");
+        if (bundleBtn && !currentUser.isBundle) {
+            bundleBtn.innerHTML = `Beli Bundle (${formatRupiah(bundlePrice)}) - Akses Semua Kursus`;
+            bundleBtn.setAttribute("data-price", bundlePrice);
+        }
+    }
+    
+    // Event listener tombol terapkan promo
+    document.getElementById("applyPromoBtn").onclick = async () => {
+        const code = document.getElementById("promoCodeInput").value.trim();
+        if (!code) {
+            alert("Masukkan kode promo!");
             return;
         }
-
-        const promo = promos[0];
-
-        // Check expiry
-        if (promo.valid_until && new Date() > new Date(promo.valid_until)) {
-            statusEl.innerHTML = '<span style="color:#e74c3c;">❌ Kode promo sudah kadaluarsa.</span>';
+        
+        const result = await checkPromo(code);
+        const promoMessage = document.getElementById("promoMessage");
+        
+        if (result.valid) {
+            appliedPromo = result;
+            promoMessage.innerHTML = `<div class="alert-success">✅ ${result.message}</div>`;
+            updatePricesWithDiscount(result.discount);
+        } else {
             appliedPromo = null;
-            applyPromoToUI();
-            document.getElementById("clearPromoBtn").style.display = "none";
-            return;
+            promoMessage.innerHTML = `<div class="alert-warning">❌ ${result.message}</div>`;
         }
-
-        appliedPromo = promo;
-        applyPromoToUI();
-        statusEl.innerHTML = `<span style="color:#27ae60;">✅ Kode <strong>${promo.code}</strong> berhasil! Diskon <strong>${promo.discount_percent}%</strong> diterapkan ke semua kursus.</span>`;
-        document.getElementById("applyPromoBtn").style.display = "none";
-        document.getElementById("clearPromoBtn").style.display = "inline-block";
     };
-
-    // Clear promo button
+    
+    // Event listener tombol batal promo
     document.getElementById("clearPromoBtn").onclick = () => {
         appliedPromo = null;
-        applyPromoToUI();
         document.getElementById("promoCodeInput").value = "";
-        document.getElementById("promoStatus").innerHTML = "";
-        document.getElementById("applyPromoBtn").style.display = "inline-block";
-        document.getElementById("clearPromoBtn").style.display = "none";
+        document.getElementById("promoMessage").innerHTML = "";
+        resetPrices();
+        alert("🏷️ Kode promo dibatalkan");
     };
-
+}
     // Bundle buy
     if (document.getElementById("buyBundleBtn")) {
         document.getElementById("buyBundleBtn").onclick = async () => {
