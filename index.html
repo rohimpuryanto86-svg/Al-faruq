@@ -814,31 +814,46 @@ async function renderUserDashboard() {
         currentUser = null; 
         window.location.hash = "#landing"; 
     };
-    function copyReferral() {
-    const referralCode = currentUser.referralCode;
+}
+
+function copyReferral() {
+    const referralCode = currentUser && currentUser.referralCode;
     if (!referralCode) {
         alert("Kode referral tidak ditemukan!");
         return;
     }
-    
-    // Buat URL lengkap dengan parameter ref
-    const baseUrl = window.location.href.split('#')[0];
+    const baseUrl = window.location.href.split('?')[0].split('#')[0];
     const referralUrl = `${baseUrl}?ref=${referralCode}`;
-    
-    // Salin ke clipboard
-    navigator.clipboard.writeText(referralUrl).then(() => {
-        alert(`✅ Link referral berhasil disalin!\n\n${referralUrl}`);
-    }).catch(() => {
-        // Fallback untuk browser lama
-        const textarea = document.createElement('textarea');
-        textarea.value = referralUrl;
-        document.body.appendChild(textarea);
-        textarea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textarea);
-        alert(`✅ Link referral berhasil disalin!\n\n${referralUrl}`);
-    });
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(referralUrl).then(() => {
+            alert(`✅ Link referral berhasil disalin!\n\n${referralUrl}`);
+        }).catch(() => {
+            fallbackCopy(referralUrl);
+        });
+    } else {
+        fallbackCopy(referralUrl);
+    }
 }
+
+function fallbackCopy(text) {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+    try {
+        document.execCommand('copy');
+        alert(`✅ Link referral berhasil disalin!\n\n${text}`);
+    } catch(e) {
+        alert(`Gagal menyalin otomatis. Salin manual:\n\n${text}`);
+    }
+    document.body.removeChild(textarea);
+}
+
+window.copyReferral = copyReferral;
+
 async function renderStorePage() {
     // State untuk promo
     let appliedPromo = null;
