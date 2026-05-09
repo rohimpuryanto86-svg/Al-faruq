@@ -2366,37 +2366,16 @@ async function renderTransferPage() {
         btn.disabled = true;
         btn.innerHTML = "Memproses...";
         
-        // Kurangi saldo pengirim
-        let newSenderBalance = currentUser.walletBalance - amount;
-        let { error: senderError } = await supabaseClient
-            .from('profiles')
-            .update({ wallet_balance: newSenderBalance })
-            .eq('user_id', currentUser.id);
+        // Transfer saldo via server function (aman, atomic)
+        let { error: transferError } = await supabaseClient
+            .rpc('transfer_wallet', {
+                sender_id: currentUser.id,
+                receiver_id: selectedUser.user_id,
+                amount: amount
+            });
         
-        if (senderError) {
-            alert("❌ Gagal: " + senderError.message);
-            btn.disabled = false;
-            btn.innerHTML = originalText;
-            return;
-        }
-        
-        // Tambah saldo penerima
-        let { data: receiver } = await supabaseClient
-            .from('profiles')
-            .select('wallet_balance')
-            .eq('user_id', selectedUser.user_id)
-            .single();
-        
-        let newReceiverBalance = (receiver?.wallet_balance || 0) + amount;
-        let { error: receiverError } = await supabaseClient
-            .from('profiles')
-            .update({ wallet_balance: newReceiverBalance })
-            .eq('user_id', selectedUser.user_id);
-        
-        if (receiverError) {
-            // Rollback
-            await supabaseClient.from('profiles').update({ wallet_balance: currentUser.walletBalance }).eq('user_id', currentUser.id);
-            alert("❌ Gagal: " + receiverError.message);
+        if (transferError) {
+            alert("❌ Gagal transfer: " + transferError.message);
             btn.disabled = false;
             btn.innerHTML = originalText;
             return;
