@@ -2261,22 +2261,37 @@ async function renderTransferPage() {
         searchResult.innerHTML = '<span style="color:#f39c12;">🔍 Mencari...</span>';
         
         typingTimer = setTimeout(async () => {
-            const { data, error } = await supabaseClient
+            // Cari berdasarkan nama dulu di profiles
+            let { data: byName, error: nameError } = await supabaseClient
                 .from('profiles')
-                .select('user_id, full_name, email')
-                .or(`email.ilike.%${query}%,full_name.ilike.%${query}%`)
+                .select('user_id, full_name, phone')
+                .ilike('full_name', `%${query}%`)
                 .neq('user_id', currentUser.id)
                 .limit(5);
-            
-            if (error || !data || data.length === 0) {
+
+            // Cari berdasarkan email via RPC function
+            let { data: byEmail, error: emailError } = await supabaseClient
+                .rpc('find_user_by_email', { search_email: query });
+
+            // Gabungkan hasil, hindari duplikat
+            let combined = [...(byName || [])];
+            if (byEmail && byEmail.length > 0) {
+                byEmail.forEach(eu => {
+                    if (eu.user_id !== currentUser.id && !combined.find(u => u.user_id === eu.user_id)) {
+                        combined.push(eu);
+                    }
+                });
+            }
+
+            if (combined.length === 0) {
                 searchResult.innerHTML = '<span style="color:#e74c3c;">❌ User tidak ditemukan</span>';
                 selectedUser = null;
                 transferBtn.disabled = true;
             } else {
                 let html = '<div style="border:1px solid #ddd; border-radius:8px; background:var(--bg-card);">';
-                data.forEach(user => {
-                    html += `<div class="user-result" data-id="${user.user_id}" data-name="${user.full_name}" data-email="${user.email}" style="padding:10px; border-bottom:1px solid #eee; cursor:pointer;">
-                        <strong>${user.full_name}</strong><br><small>${user.email}</small>
+                combined.forEach(user => {
+                    html += `<div class="user-result" data-id="${user.user_id}" data-name="${user.full_name}" style="padding:10px; border-bottom:1px solid #eee; cursor:pointer;">
+                        <strong>${user.full_name}</strong><br><small>${user.phone || ''}</small>
                     </div>`;
                 });
                 html += '</div>';
@@ -2286,10 +2301,9 @@ async function renderTransferPage() {
                     el.onclick = () => {
                         selectedUser = {
                             user_id: el.getAttribute("data-id"),
-                            full_name: el.getAttribute("data-name"),
-                            email: el.getAttribute("data-email")
+                            full_name: el.getAttribute("data-name")
                         };
-                        searchInput.value = `${selectedUser.full_name} (${selectedUser.email})`;
+                        searchInput.value = selectedUser.full_name;
                         searchResult.innerHTML = `<span style="color:#27ae60;">✅ Penerima: ${selectedUser.full_name}</span>`;
                         transferBtn.disabled = false;
                     };
@@ -2345,7 +2359,7 @@ async function renderTransferPage() {
             return;
         }
         
-        if (!confirm(`Konfirmasi transfer:\n\nKepada: ${selectedUser.full_name}\nJumlah: ${formatRupiah(amount)}\nCatatan: ${note || '-'}\n\nLanjutkan?`)) return;
+        if (!confirm(`Konfirmasi transfer:\n\nKepada: ${selectedUser.full_name}\nJumlah: ${formatRupiah(amount)}\nCatatan: ${note || '-'}\n\nTransfer tidak dapat dibatalkan. Lanjutkan?`)) return;
         
         let btn = document.getElementById("transferBtn");
         let originalText = btn.innerHTML;
