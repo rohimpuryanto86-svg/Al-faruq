@@ -143,11 +143,215 @@
         .ppob-product-card { cursor: pointer; transition: transform 0.2s; }
         .ppob-product-card:hover { transform: translateY(-5px); }
         pre { overflow-x: auto; white-space: pre-wrap; word-wrap: break-word; }
+
+        /* ===== SKELETON LOADING ===== */
+        @keyframes shimmer {
+            0% { background-position: -1000px 0; }
+            100% { background-position: 1000px 0; }
+        }
+        .skeleton {
+            background: linear-gradient(90deg, #e0e0e0 25%, #f0f0f0 50%, #e0e0e0 75%);
+            background-size: 1000px 100%;
+            animation: shimmer 1.5s infinite;
+            border-radius: 12px;
+        }
+        [data-theme="dark"] .skeleton {
+            background: linear-gradient(90deg, #3a3a55 25%, #4a4a6a 50%, #3a3a55 75%);
+            background-size: 1000px 100%;
+        }
+        .skeleton-text { height: 16px; margin: 8px 0; }
+        .skeleton-title { height: 28px; width: 60%; margin-bottom: 12px; }
+        .skeleton-card { height: 120px; margin-bottom: 16px; border-radius: 24px; }
+        .skeleton-avatar { width: 60px; height: 60px; border-radius: 50%; }
+        .skeleton-badge { width: 80px; height: 80px; border-radius: 16px; }
+
+        /* ===== OFFLINE INDICATOR ===== */
+        #offlineBar {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            background: #e74c3c;
+            color: white;
+            text-align: center;
+            padding: 8px;
+            font-size: 0.85rem;
+            font-weight: bold;
+            z-index: 9999;
+            animation: slideDown 0.3s ease;
+        }
+        #offlineBar.online {
+            background: #27ae60;
+        }
+        @keyframes slideDown {
+            from { transform: translateY(-100%); }
+            to { transform: translateY(0); }
+        }
+        #cacheStatusBadge {
+            display: inline-block;
+            font-size: 0.7rem;
+            padding: 2px 8px;
+            border-radius: 20px;
+            background: #27ae60;
+            color: white;
+            margin-left: 8px;
+            vertical-align: middle;
+        }
     </style>
 </head>
 <body>
+<div id="offlineBar">📵 Kamu sedang offline — menampilkan data tersimpan</div>
 <div class="container" id="appRoot">Memuat aplikasi...</div>
 <script>
+// ======================== CACHE SYSTEM (IndexedDB) ========================
+const CACHE_VERSION = 'aoc_v1';
+const CACHE_DURATION = 7 * 24 * 60 * 60 * 1000; // 7 hari
+
+const CacheDB = {
+    db: null,
+    async init() {
+        return new Promise((resolve, reject) => {
+            const req = indexedDB.open('AOC_Cache', 1);
+            req.onupgradeneeded = e => {
+                const db = e.target.result;
+                if (!db.objectStoreNames.contains('cache')) {
+                    db.createObjectStore('cache', { keyPath: 'key' });
+                }
+            };
+            req.onsuccess = e => { this.db = e.target.result; resolve(); };
+            req.onerror = () => reject(req.error);
+        });
+    },
+    async set(key, value) {
+        if (!this.db) return;
+        return new Promise((resolve) => {
+            const tx = this.db.transaction('cache', 'readwrite');
+            tx.objectStore('cache').put({ key, value, timestamp: Date.now() });
+            tx.oncomplete = resolve;
+            tx.onerror = resolve; // jangan block kalau gagal
+        });
+    },
+    async get(key) {
+        if (!this.db) return null;
+        return new Promise((resolve) => {
+            const tx = this.db.transaction('cache', 'readonly');
+            const req = tx.objectStore('cache').get(key);
+            req.onsuccess = () => {
+                const result = req.result;
+                if (!result) return resolve(null);
+                // Cek expired
+                if (Date.now() - result.timestamp > CACHE_DURATION) {
+                    this.delete(key);
+                    return resolve(null);
+                }
+                resolve(result.value);
+            };
+            req.onerror = () => resolve(null);
+        });
+    },
+    async delete(key) {
+        if (!this.db) return;
+        return new Promise((resolve) => {
+            const tx = this.db.transaction('cache', 'readwrite');
+            tx.objectStore('cache').delete(key);
+            tx.oncomplete = resolve;
+        });
+    },
+    async clear() {
+        if (!this.db) return;
+        return new Promise((resolve) => {
+            const tx = this.db.transaction('cache', 'readwrite');
+            tx.objectStore('cache').clear();
+            tx.oncomplete = resolve;
+        });
+    }
+};
+
+// ======================== ONLINE/OFFLINE HANDLER ========================
+let isOnline = navigator.onLine;
+
+function updateOnlineStatus() {
+    const bar = document.getElementById('offlineBar');
+    isOnline = navigator.onLine;
+    if (!isOnline) {
+        bar.className = '';
+        bar.textContent = '📵 Kamu sedang offline — menampilkan data tersimpan';
+        bar.style.display = 'block';
+        document.body.style.paddingTop = '36px';
+    } else {
+        bar.className = 'online';
+        bar.textContent = '✅ Kembali online — menyinkronkan data...';
+        bar.style.display = 'block';
+        document.body.style.paddingTop = '36px';
+        // Sembunyikan setelah 3 detik
+        setTimeout(() => {
+            bar.style.display = 'none';
+            document.body.style.paddingTop = '0';
+            // Auto sync saat online kembali
+            if (supabaseClient) syncOnlineData();
+        }, 3000);
+    }
+}
+
+async function syncOnlineData() {
+    try {
+        await loadBadges(true);
+        await loadCourses(true);
+        if (currentUser) await loadUserProfile(true);
+        console.log('✅ Data berhasil disinkronkan');
+    } catch(e) {
+        console.warn('Sync gagal:', e.message);
+    }
+}
+
+window.addEventListener('online', updateOnlineStatus);
+window.addEventListener('offline', updateOnlineStatus);
+
+// ======================== SKELETON HELPERS ========================
+function skeletonDashboard() {
+    return `
+    <div class="card">
+        <div class="skeleton skeleton-title"></div>
+        <div class="skeleton skeleton-text" style="width:40%"></div>
+        <div class="skeleton skeleton-text" style="width:55%"></div>
+        <div style="display:flex;gap:12px;margin-top:16px;">
+            <div class="skeleton skeleton-badge"></div>
+            <div class="skeleton skeleton-badge"></div>
+            <div class="skeleton skeleton-badge"></div>
+        </div>
+    </div>
+    <div class="skeleton skeleton-card"></div>
+    <div class="skeleton skeleton-card"></div>`;
+}
+
+function skeletonCourseGrid() {
+    return `
+    <div class="course-grid">
+        ${[1,2,3,4].map(() => `
+        <div class="card" style="border-radius:24px;">
+            <div class="skeleton" style="height:50px;width:50px;border-radius:50%;margin:0 auto 12px;"></div>
+            <div class="skeleton skeleton-text" style="width:70%;margin:auto;"></div>
+            <div class="skeleton skeleton-text" style="width:50%;margin:8px auto;"></div>
+            <div class="skeleton" style="height:40px;border-radius:40px;margin-top:12px;"></div>
+        </div>`).join('')}
+    </div>`;
+}
+
+function skeletonProfile() {
+    return `
+    <div class="card">
+        <div style="display:flex;gap:16px;align-items:center;">
+            <div class="skeleton skeleton-avatar"></div>
+            <div style="flex:1;">
+                <div class="skeleton skeleton-text" style="width:60%;"></div>
+                <div class="skeleton skeleton-text" style="width:40%;"></div>
+            </div>
+        </div>
+        <div class="skeleton skeleton-text" style="margin-top:16px;"></div>
+        <div class="skeleton skeleton-text" style="width:80%;"></div>
+        <div class="skeleton skeleton-text" style="width:65%;"></div>
+    </div>`;
+}
+
 // ======================== KONFIGURASI SUPABASE ========================
 const SUPABASE_URL = "https://yfrpaacvuvgtqbsuihoa.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlmcnBhYWN2dXZndHFic3VpaG9hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc3NzI2OTcsImV4cCI6MjA5MzM0ODY5N30.kKhxyE03vIflYRp3MKjOP1Sd_3V81uk05tv5BQ_Ck68";
@@ -187,7 +391,11 @@ function getDiscountedPrice(price) { if (settings.earlyBirdEnabled && new Date()
 // ======================== SUPABASE INIT ========================
 async function initSupabase() {
     try {
+        // Init cache IndexedDB
+        await CacheDB.init();
         supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        // Tampilkan skeleton saat loading
+        document.getElementById("appRoot").innerHTML = skeletonDashboard();
         await loadBadges();
         const { data: { session } } = await supabaseClient.auth.getSession();
         if (session) { currentUser = session.user; await loadUserProfile(); await checkAdminStatus(); }
@@ -196,6 +404,13 @@ async function initSupabase() {
         return true;
     } catch(e) {
         console.error(e);
+        // Coba load dari cache kalau error/offline
+        const cachedCourses = await CacheDB.get('courses');
+        if (cachedCourses) {
+            coursesData = cachedCourses;
+            console.log('Loaded courses from cache');
+            return true;
+        }
         document.getElementById("appRoot").innerHTML = `<div class="card"><h2>❌ Gagal terhubung ke server</h2><p>${e.message}</p><button onclick="location.reload()">Coba Lagi</button></div>`;
         return false;
     }
@@ -216,7 +431,12 @@ async function loadAppSettings() {
     }
 }
 
-async function loadBadges() {
+async function loadBadges(forceRefresh = false) {
+    // Cek cache dulu
+    if (!forceRefresh) {
+        const cached = await CacheDB.get('badges');
+        if (cached) { badgesData = cached; return; }
+    }
     const { data } = await supabaseClient.from('badges').select('*');
     badgesData = data || [
         { id: 1, name: "Pemula", icon: "🌱", requirement: "Menyelesaikan 1 materi" },
@@ -224,10 +444,22 @@ async function loadBadges() {
         { id: 3, name: "Sarjana", icon: "🎓", requirement: "Menyelesaikan 1 kursus" },
         { id: 4, name: "Master", icon: "👑", requirement: "Menyelesaikan semua kursus" }
     ];
+    await CacheDB.set('badges', badgesData);
 }
 
-async function loadUserProfile() {
+async function loadUserProfile(forceRefresh = false) {
     if (!currentUser) return;
+
+    // Cek cache dulu kalau offline atau tidak forceRefresh
+    if (!forceRefresh && !isOnline) {
+        const cached = await CacheDB.get('profile_' + currentUser.id);
+        if (cached) {
+            Object.assign(currentUser, cached);
+            console.log('📦 Profile loaded from cache');
+            return;
+        }
+    }
+
     const { data, error: profileErr } = await supabaseClient.from('profiles').select('*').eq('user_id', currentUser.id).single();
     if (profileErr) { console.warn('loadUserProfile error:', profileErr.message, '— kemungkinan RLS memblokir SELECT profiles.'); }
     if (data) {
@@ -247,6 +479,23 @@ async function loadUserProfile() {
         if (progressData) progressData.forEach(p => { currentUser.completedLessons[p.course_id] = p.completed_lessons || []; });
         const { data: scoresData } = await supabaseClient.from('scores').select('*').eq('user_id', currentUser.id);
         currentUser.scores = scoresData || [];
+
+        // Simpan ke cache
+        await CacheDB.set('profile_' + currentUser.id, {
+            profile: currentUser.profile,
+            name: currentUser.name,
+            status: currentUser.status,
+            walletBalance: currentUser.walletBalance,
+            referralCode: currentUser.referralCode,
+            canRefer: currentUser.canRefer,
+            phone: currentUser.phone,
+            purchasedCourses: currentUser.purchasedCourses,
+            isBundle: currentUser.isBundle,
+            commission: currentUser.commission,
+            earnedBadges: currentUser.earnedBadges,
+            completedLessons: currentUser.completedLessons,
+            scores: currentUser.scores
+        });
     }
     // Hitung jumlah referral - ambil semua user yang referred_by = id user ini
     const { data: referralList, error: referralErr } = await supabaseClient
@@ -266,7 +515,12 @@ async function checkAdminStatus() {
     return isAdmin;
 }
 
-async function loadCourses() {
+async function loadCourses(forceRefresh = false) {
+    // Cek cache dulu
+    if (!forceRefresh) {
+        const cached = await CacheDB.get('courses');
+        if (cached) { coursesData = cached; return coursesData; }
+    }
     const { data } = await supabaseClient.from('courses').select('*').order('id');
     if (data && data.length > 0) {
         coursesData = data.map(c => ({ ...c, lessons: c.lessons || [], price: c.price || 200000, telegram_group: c.telegram_group || '' }));
@@ -279,6 +533,8 @@ async function loadCourses() {
         ];
         for (const c of coursesData) await supabaseClient.from('courses').upsert(c);
     }
+    // Simpan ke cache
+    await CacheDB.set('courses', coursesData);
     return coursesData;
 }
 
@@ -3993,6 +4249,25 @@ async function route() {
         if (urlParams.get('ref')) { renderRegisterForm(false); }
         else renderLandingPage();
     }
+}
+
+// ======================== CACHE UTILITIES ========================
+async function clearAppCache() {
+    await CacheDB.clear();
+    alert('✅ Cache berhasil dihapus! Halaman akan dimuat ulang.');
+    location.reload();
+}
+
+// Tampilkan info cache di console
+async function checkCacheStatus() {
+    const courses = await CacheDB.get('courses');
+    const badges = await CacheDB.get('badges');
+    const profile = currentUser ? await CacheDB.get('profile_' + currentUser.id) : null;
+    console.log('📦 Cache status:', {
+        courses: courses ? `✅ ${courses.length} kursus` : '❌ kosong',
+        badges: badges ? `✅ ${badges.length} badge` : '❌ kosong',
+        profile: profile ? '✅ ada' : '❌ kosong'
+    });
 }
 
 // ======================== INIT ========================
