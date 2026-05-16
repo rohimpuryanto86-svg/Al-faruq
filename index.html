@@ -556,7 +556,9 @@ async function saveCourseToDB(course) {
             .upsert(courseData, { onConflict: 'id' });  // ← Ganti 'error' jadi 'id'
         
         if (error) throw error;
-        await loadCourses();
+        // Hapus cache dulu agar data baru (termasuk telegram_group) terbaca ulang dari DB
+        await CacheDB.delete('courses');
+        await loadCourses(true);
         return true;
         
     } catch (error) {
