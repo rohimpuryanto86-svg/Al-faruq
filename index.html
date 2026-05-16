@@ -426,6 +426,23 @@ async function loadAppSettings() {
             if (s.key === 'early_bird_discount') settings.earlyBirdDiscount = parseInt(s.value);
             if (s.key === 'early_bird_end_date') settings.earlyBirdEndDate = s.value;
             if (s.key === 'default_whatsapp_number') settings.defaultWhatsappNumber = s.value;
+            // Load markup PPOB dari DB
+            if (s.key.startsWith('ppob_markup_')) {
+                // Format key: ppob_markup_pulsa_pulsa5k
+                const parts = s.key.replace('ppob_markup_', '').split('_');
+                // Cari produk yang cocok berdasarkan sku (ambil bagian terakhir sebagai sku)
+                // sku bisa mengandung underscore jadi kita cari by sku di semua kategori
+                const savedMarkup = parseInt(s.value);
+                if (!isNaN(savedMarkup)) {
+                    for (const [cat, products] of Object.entries(PPOB_PRODUCTS)) {
+                        for (const p of products) {
+                            if (s.key === `ppob_markup_${cat}_${p.sku}`) {
+                                p.markup = savedMarkup;
+                            }
+                        }
+                    }
+                }
+            }
             // Pengaturan sertifikat disimpan langsung di appSettings object
         });
     }
@@ -3322,9 +3339,41 @@ async function renderPPOBMarkupSettings() {
     Object.entries(PPOB_PRODUCTS).forEach(([cat, products]) => { products.forEach(p => { let inp = document.querySelector(`input[name="markup_${cat}_${p.sku}"]`); if(inp) inp.addEventListener('input', (e) => { let markup = parseInt(e.target.value) || 0; let span = document.querySelector(`.price_${cat}_${p.sku}`); if(span) span.innerHTML = formatRupiah(p.basePrice + markup); }); }); });
     document.getElementById("backBtn").onclick = () => renderAdminDashboard();
     document.getElementById("markupForm").onsubmit = async (e) => {
-        e.preventDefault(); let updated = false;
-        Object.entries(PPOB_PRODUCTS).forEach(([cat, products]) => { products.forEach(p => { let inp = document.querySelector(`input[name="markup_${cat}_${p.sku}"]`); if(inp) { let newMarkup = parseInt(inp.value); if(!isNaN(newMarkup) && newMarkup !== p.markup) { p.markup = newMarkup; updated = true; } } }); });
-        alert(updated ? "✅ Markup PPOB berhasil disimpan!" : "Tidak ada perubahan"); if(updated) renderPPOBMarkupSettings();
+        e.preventDefault();
+        const btn = e.target.querySelector('button[type="submit"]');
+        btn.disabled = true; btn.textContent = "Menyimpan...";
+        try {
+            let updated = false;
+            const upsertData = [];
+            Object.entries(PPOB_PRODUCTS).forEach(([cat, products]) => {
+                products.forEach(p => {
+                    let inp = document.querySelector(`input[name="markup_${cat}_${p.sku}"]`);
+                    if (inp) {
+                        let newMarkup = parseInt(inp.value);
+                        if (!isNaN(newMarkup) && newMarkup !== p.markup) {
+                            p.markup = newMarkup;
+                            updated = true;
+                        }
+                        // Selalu simpan semua markup ke DB (bukan hanya yang berubah)
+                        upsertData.push({ key: `ppob_markup_${cat}_${p.sku}`, value: String(p.markup) });
+                    }
+                });
+            });
+            if (updated) {
+                // Simpan ke Supabase app_settings
+                const { error } = await supabaseClient.from('app_settings')
+                    .upsert(upsertData, { onConflict: 'key' });
+                if (error) throw error;
+                alert("✅ Markup PPOB berhasil disimpan ke database!");
+            } else {
+                alert("Tidak ada perubahan markup.");
+            }
+            renderPPOBMarkupSettings();
+        } catch (err) {
+            alert("❌ Gagal menyimpan: " + err.message);
+        } finally {
+            btn.disabled = false; btn.textContent = "Simpan Semua Markup";
+        }
     };
 }
 
