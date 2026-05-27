@@ -716,10 +716,12 @@ async function purchaseBundle(promoDiscount = 0, promoCode = null) {
 // ======================== PPOB EDGE FUNCTION INTEGRATION ========================
 async function callPPOBEdgeFunction(action, data = {}) {
     try {
+        alert("DEBUG 1: Memanggil edge function\naction=" + action + "\nsupabaseClient=" + (supabaseClient ? "OK" : "NULL"));
         const { data: result, error } = await supabaseClient.functions.invoke("ppob", { body: { action, ...data } });
-        if (error) throw new Error(error.message);
+        alert("DEBUG 2: Response diterima\nerror=" + JSON.stringify(error) + "\nresult keys=" + (result ? Object.keys(result).join(",") : "null"));
+        if (error) { alert("DEBUG 2b: Ada error!\n" + JSON.stringify(error)); throw new Error(error.message); }
         return result;
-    } catch (err) { console.error(`PPOB Edge Function error:`, err); throw err; }
+    } catch (err) { alert("DEBUG 3: CATCH ERROR\n" + err.message); console.error(`PPOB Edge Function error:`, err); throw err; }
 }
 
 async function uploadToImgBBViaEdge(file) {
@@ -727,20 +729,14 @@ async function uploadToImgBBViaEdge(file) {
         const reader = new FileReader();
         reader.onload = async () => {
             const base64 = reader.result.split(",")[1];
+            alert("DEBUG 4: File terbaca\nbase64 length=" + (base64?.length || 0));
             try {
-        console.log("supabaseClient:", supabaseClient);
-        alert("Client: " + (supabaseClient ? "OK" : "NULL") + " | base64: " + (base64?.length || 0));
-        console.log("Memanggil upload, panjang base64:", base64?.length);
-        const result = await callPPOBEdgeFunction("upload", { image: base64 });
-        console.log("Upload result:", result);
-        alert("Result: " + JSON.stringify(result));       
-        resolve(result.url);
-         } catch (err) { 
-    alert("ERROR: " + err.message + " | " + JSON.stringify(err)); 
-    reject(err); 
-}
+                const result = await callPPOBEdgeFunction("upload", { image: base64 });
+                alert("DEBUG 5: Upload berhasil!\nurl=" + result?.url);
+                resolve(result.url);
+            } catch (err) { alert("DEBUG 6: Upload gagal!\n" + err.message); reject(err); }
         };
-        reader.onerror = () => reject(new Error("Gagal membaca file"));
+        reader.onerror = () => { alert("DEBUG 7: Gagal membaca file!"); reject(new Error("Gagal membaca file")); };
         reader.readAsDataURL(file);
     });
 }
