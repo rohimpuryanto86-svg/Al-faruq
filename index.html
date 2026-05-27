@@ -728,7 +728,10 @@ async function uploadToImgBBViaEdge(file) {
         reader.onload = async () => {
             const base64 = reader.result.split(",")[1];
             try {
-                const result = await callPPOBEdgeFunction("upload", { image: base64 });
+        console.log("supabaseClient:", supabaseClient);
+        console.log("Memanggil upload, panjang base64:", base64?.length);
+        const result = await callPPOBEdgeFunction("upload", { image: base64 });
+        console.log("Upload result:", result);
                 resolve(result.url);
             } catch (err) { reject(err); }
         };
