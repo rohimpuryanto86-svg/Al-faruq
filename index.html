@@ -729,10 +729,12 @@ async function uploadToImgBBViaEdge(file) {
             const base64 = reader.result.split(",")[1];
             try {
         console.log("supabaseClient:", supabaseClient);
+        alert("Client: " + (supabaseClient ? "OK" : "NULL") + " | base64: " + (base64?.length || 0));
         console.log("Memanggil upload, panjang base64:", base64?.length);
         const result = await callPPOBEdgeFunction("upload", { image: base64 });
         console.log("Upload result:", result);
-                resolve(result.url);
+        alert("Result: " + JSON.stringify(result));       
+        resolve(result.url);
             } catch (err) { reject(err); }
         };
         reader.onerror = () => reject(new Error("Gagal membaca file"));
