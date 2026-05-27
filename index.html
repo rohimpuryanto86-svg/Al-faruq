@@ -735,7 +735,10 @@ async function uploadToImgBBViaEdge(file) {
         console.log("Upload result:", result);
         alert("Result: " + JSON.stringify(result));       
         resolve(result.url);
-            } catch (err) { reject(err); }
+         } catch (err) { 
+    alert("ERROR: " + err.message + " | " + JSON.stringify(err)); 
+    reject(err); 
+}
         };
         reader.onerror = () => reject(new Error("Gagal membaca file"));
         reader.readAsDataURL(file);
