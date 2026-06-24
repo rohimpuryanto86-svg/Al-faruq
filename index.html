@@ -546,7 +546,7 @@ async function loadCourses(forceRefresh = false) {
             { id: 1, title: "Baca Al-Qur'an", icon: "📖", description: "Metode tahsin sederhana, praktik dari juz 30", price: 200000, telegram_group: "", lessons: [] },
             { id: 2, title: "Baca Kitab Gundul", icon: "📚", description: "Kenali huruf hijaiyah, pola nahwu-sharaf dasar", price: 200000, telegram_group: "", lessons: [] },
             { id: 3, title: "Bahasa Arab Umroh", icon: "🕋", description: "300+ kosakata, simulasi dialog", price: 200000, telegram_group: "", lessons: [] },
-            { id: 4, title: "Shalat Khusyu'", icon: "🕌", description: "Makna bacaan shalat, tips khusyu' terbukti", price: 200000, telegram_group: "", lessons: [] }
+            { id: 4, title: "Ruqyah Mandiri Tanpa Kesurupan (RMTK)", icon: "🛡️", description: "Penanganan penyakit non fisik, ain, psikis, gangguan jin dan sihir secara mandiri", price: 200000, telegram_group: "", lessons: [] }
         ];
         for (const c of coursesData) await supabaseClient.from('courses').upsert(c);
     }
@@ -919,7 +919,7 @@ function renderLandingPage() {
     let html = `<button class="admin-corner-btn" onclick="window.location.hash='#admin'">Admin</button>
         <button class="dark-mode-toggle" onclick="toggleDarkMode()">Mode Gelap</button>
         <div class="landing-header"><div class="logo">ALFARUQ ONLINE COURSE</div><div class="tagline">Belajar Islam Dalam Genggaman Dimana Saja</div></div>
-        <div class="card" style="text-align:center;"><h1>Bisa Baca Al-Qur'an, Kitab Gundul,<br>Bahasa Arab Umroh, dan Shalat Khusyu'?</h1>
+        <div class="card" style="text-align:center;"><h1>Bisa Baca Al-Qur'an, Kitab Gundul,<br>Bahasa Arab Umroh, dan Ruqyah Mandiri?</h1>
         <h3>Tanpa Harus Mondok Bertahun-tahun?</h3><p>Kini ada <strong>4 kursus online praktis</strong>, cukup <strong>15 menit sehari</strong>.</p>
         <div class="countdown-badge" id="landingCountdown">Memuat...</div>
         <div><div style="display:flex; gap:15px; justify-content:center;">
@@ -970,14 +970,17 @@ function renderLandingPage() {
             </ul>
           </div>
           <div class="benefit-card">
-            <div class="benefit-icon">🕌</div>
-            <div class="benefit-title">Shalat Khusyu'</div>
+            <div class="benefit-icon">🛡️</div>
+            <div class="benefit-title">Ruqyah Mandiri Tanpa Kesurupan (RMTK)</div>
             <ul class="benefit-list">
-              <li>✔️ Macam-macam Shalat</li>
-              <li>✔️ Tujuan Shalat Khusyu'</li>
-              <li>✔️ Tingkatan Akal dalam Shalat</li>
-              <li>✔️ Praktek Shalat Khusyu'</li>
-              <li>✔️ Video Pembelajaran</li>
+              <li>✔️ Pendahuluan</li>
+              <li>✔️ Mengenal Penyakit Non Fisik</li>
+              <li>✔️ Penyakit Ain</li>
+              <li>✔️ Penyakit Psikis</li>
+              <li>✔️ Penyakit Gangguan Jin dan Sihir</li>
+              <li>✔️ Teori Tahapan RMTK</li>
+              <li>✔️ Praktek RMTK</li>
+              <li>✔️ Bimbingan Video</li>
               <li>✔️ Quiz Evaluasi</li>
               <li>✔️ Sertifikat Digital</li>
             </ul>
