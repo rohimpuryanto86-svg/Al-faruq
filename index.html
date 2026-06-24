@@ -540,7 +540,7 @@ async function loadCourses(forceRefresh = false) {
     }
     const { data } = await supabaseClient.from('courses').select('*').order('id');
     if (data && data.length > 0) {
-        coursesData = data.map(c => ({ ...c, lessons: c.lessons || [], price: c.price || 200000, telegram_group: c.telegram_group || '' }));
+        coursesData = data.map(c => ({ ...c, lessons: c.lessons || [], price: c.price || 200000, telegram_group: c.telegram_group || '', teacher_name: c.teacher_name || '', teacher_signature: c.teacher_signature || '' }));
         // AUTO-PATCH: Update kursus id:4 jika masih memakai nama lama
         const course4 = coursesData.find(c => c.id === 4);
         const namaLama = ["Shalat Khusyu'", "Shalat Khusyu", "Ruqyah Syar'iyyah Tanpa Kesurupan", "Ruqyah Syar'iyyah"];
@@ -583,7 +583,9 @@ async function saveCourseToDB(course) {
             price: parseInt(course.price) || 200000,
             lessons: course.lessons || [],
             telegram_group: course.telegram_group || course.telegramGroup || "",
-            is_active: course.is_active !== undefined ? course.is_active : true
+            is_active: course.is_active !== undefined ? course.is_active : true,
+            teacher_name: course.teacher_name || "",
+            teacher_signature: course.teacher_signature || ""
         };
         
         const { error } = await supabaseClient
@@ -1985,9 +1987,14 @@ async function renderCertificatePage() {
                 const sigRoleY = sigNameY + 4; // y jabatan
 
                 // Ambil nama & tanda tangan dari settings
-                const certTeacherName = appSettings['cert_teacher_name'] || 'Ustadz Pengajar';
+                // Prioritas: pengajar per-kursus → pengajar global
+                const certTeacherName = (course.teacher_name && course.teacher_name.trim())
+                    ? course.teacher_name
+                    : (appSettings['cert_teacher_name'] || 'Ustadz Pengajar');
                 const certDirectorName = appSettings['cert_director_name'] || 'Direktur';
-                const certTeacherSig = appSettings['cert_teacher_signature'] || '';
+                const certTeacherSig = (course.teacher_signature && course.teacher_signature.startsWith('data:'))
+                    ? course.teacher_signature
+                    : (appSettings['cert_teacher_signature'] || '');
                 const certDirectorSig = appSettings['cert_director_signature'] || '';
 
                 // Normalisasi & gambar tanda tangan kiri (Pengajar)
@@ -3648,12 +3655,65 @@ async function renderAddCourseForm() {
 
 async function renderEditCourseInfo() {
     let course = coursesData.find(c => c.id == editingCourseId);
-    let html = `<div class="card"><h2>Edit Info: ${course.title}</h2><form id="editInfoForm"><div class="form-group"><label>Icon</label><input type="text" id="icon" value="${course.icon || '📚'}"></div>
-        <div class="form-group"><label>Judul</label><input type="text" id="title" value="${course.title}"></div><div class="form-group"><label>Deskripsi</label><textarea id="desc">${course.description || ''}</textarea></div>
-        <div class="form-group"><label>Harga</label><input type="number" id="price" value="${course.price}"></div><div class="form-group"><label>Telegram Group</label><input type="text" id="telegramGroup" value="${course.telegram_group || ''}"></div>
-        <button type="submit" class="btn-success">Simpan</button><button type="button" id="backBtn" class="btn-back">Kembali</button></form></div>`;
+    const globalTeacherName = appSettings['cert_teacher_name'] || 'Pengajar Global';
+    const courseTeacherSig = course.teacher_signature || '';
+    let html = `<div class="card"><h2>Edit Info: ${course.title}</h2><form id="editInfoForm">
+        <div class="form-group"><label>Icon</label><input type="text" id="icon" value="${course.icon || '📚'}"></div>
+        <div class="form-group"><label>Judul</label><input type="text" id="title" value="${course.title}"></div>
+        <div class="form-group"><label>Deskripsi</label><textarea id="desc">${course.description || ''}</textarea></div>
+        <div class="form-group"><label>Harga</label><input type="number" id="price" value="${course.price}"></div>
+        <div class="form-group"><label>Telegram Group</label><input type="text" id="telegramGroup" value="${course.telegram_group || ''}"></div>
+        
+        <hr style="margin:20px 0; border-color:#ddd;">
+        <h3 style="margin-bottom:15px;">🎓 Pengajar Kursus Ini (untuk Sertifikat)</h3>
+        <div class="alert-info" style="margin-bottom:15px;">💡 Jika diisi, sertifikat kursus ini akan memakai nama & tanda tangan pengajar di bawah. Jika dikosongkan, akan pakai pengajar global (<strong>${escapeHtml(globalTeacherName)}</strong>).</div>
+        <div class="form-group">
+            <label>Nama Pengajar Kursus Ini</label>
+            <input type="text" id="courseTeacherName" value="${escapeHtml(course.teacher_name || '')}" placeholder="Kosongkan = pakai pengajar global">
+        </div>
+        <div class="form-group">
+            <label>Tanda Tangan Pengajar Kursus Ini</label>
+            <div style="border:2px dashed #ddd; border-radius:12px; padding:15px; text-align:center; margin-bottom:10px;">
+                ${courseTeacherSig ? `<img src="${courseTeacherSig}" id="previewCourseSig" style="max-height:80px; max-width:200px; object-fit:contain; display:block; margin:0 auto 10px;">` : `<div id="previewCourseSig" style="color:#999; margin-bottom:10px;">Belum ada tanda tangan</div>`}
+                <input type="file" id="courseTeacherSigFile" accept="image/*" style="display:none;">
+                <button type="button" onclick="document.getElementById('courseTeacherSigFile').click()" class="btn-primary" style="font-size:0.85rem;">📷 Upload Tanda Tangan</button>
+                ${courseTeacherSig ? `<button type="button" id="removeSigBtn" class="btn-danger" style="font-size:0.85rem; margin-left:8px;">🗑️ Hapus</button>` : ''}
+            </div>
+            <input type="hidden" id="courseTeacherSig" value="${escapeHtml(courseTeacherSig)}">
+        </div>
+        
+        <button type="submit" class="btn-success">💾 Simpan</button>
+        <button type="button" id="backBtn" class="btn-back">Kembali</button>
+    </form></div>`;
     document.getElementById("adminContent").innerHTML = html;
     document.getElementById("backBtn").onclick = () => renderCourseUIEditor();
+
+    // Preview tanda tangan saat upload
+    document.getElementById("courseTeacherSigFile").addEventListener("change", (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            const dataUrl = ev.target.result;
+            document.getElementById("courseTeacherSig").value = dataUrl;
+            const prev = document.getElementById("previewCourseSig");
+            if (prev.tagName === 'IMG') { prev.src = dataUrl; }
+            else { prev.outerHTML = `<img src="${dataUrl}" id="previewCourseSig" style="max-height:80px; max-width:200px; object-fit:contain; display:block; margin:0 auto 10px;">`; }
+        };
+        reader.readAsDataURL(file);
+    });
+
+    // Hapus tanda tangan
+    const removeSigBtn = document.getElementById("removeSigBtn");
+    if (removeSigBtn) {
+        removeSigBtn.onclick = () => {
+            document.getElementById("courseTeacherSig").value = '';
+            const prev = document.getElementById("previewCourseSig");
+            if (prev) prev.outerHTML = `<div id="previewCourseSig" style="color:#999; margin-bottom:10px;">Belum ada tanda tangan</div>`;
+            removeSigBtn.remove();
+        };
+    }
+
     document.getElementById("editInfoForm").onsubmit = async (e) => {
         e.preventDefault();
         course.icon = document.getElementById("icon").value;
@@ -3661,8 +3721,10 @@ async function renderEditCourseInfo() {
         course.description = document.getElementById("desc").value;
         course.price = parseInt(document.getElementById("price").value);
         course.telegram_group = document.getElementById("telegramGroup").value;
+        course.teacher_name = document.getElementById("courseTeacherName").value.trim();
+        course.teacher_signature = document.getElementById("courseTeacherSig").value;
         await saveCourseToDB(course);
-        alert("Info kursus disimpan!"); renderCourseUIEditor();
+        alert("✅ Info kursus disimpan!"); renderCourseUIEditor();
     };
 }
 
