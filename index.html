@@ -541,6 +541,24 @@ async function loadCourses(forceRefresh = false) {
     const { data } = await supabaseClient.from('courses').select('*').order('id');
     if (data && data.length > 0) {
         coursesData = data.map(c => ({ ...c, lessons: c.lessons || [], price: c.price || 200000, telegram_group: c.telegram_group || '' }));
+        // AUTO-PATCH: Update kursus id:4 jika masih memakai nama lama
+        const course4 = coursesData.find(c => c.id === 4);
+        const namaLama = ["Shalat Khusyu'", "Shalat Khusyu", "Ruqyah Syar'iyyah Tanpa Kesurupan", "Ruqyah Syar'iyyah"];
+        if (course4 && namaLama.some(n => course4.title.includes(n.split("'")[0]))) {
+            const patch = {
+                id: 4,
+                title: "Ruqyah Mandiri Tanpa Kesurupan (RMTK)",
+                icon: "🛡️",
+                description: "Penanganan penyakit non fisik, ain, psikis, gangguan jin dan sihir secara mandiri",
+                price: course4.price || 200000,
+                telegram_group: course4.telegram_group || "",
+                lessons: course4.lessons || [],
+                is_active: course4.is_active !== undefined ? course4.is_active : true
+            };
+            await supabaseClient.from('courses').upsert(patch, { onConflict: 'id' });
+            Object.assign(course4, patch);
+            console.log('✅ Auto-patch kursus id:4 berhasil diupdate ke RMTK');
+        }
     } else {
         coursesData = [
             { id: 1, title: "Baca Al-Qur'an", icon: "📖", description: "Metode tahsin sederhana, praktik dari juz 30", price: 200000, telegram_group: "", lessons: [] },
@@ -3556,14 +3574,76 @@ async function renderGeneralSettings() {
 }
 
 async function renderCourseUIEditor() {
-    let html = `<div class="card"><h2>Edit Kursus via UI Form</h2><div class="course-grid">${coursesData.map(course => `<div class="course-card"><div class="course-icon">${course.icon || '📚'}</div><div class="course-title">${course.title}</div>
+    let html = `<div class="card"><h2>Edit Kursus via UI Form</h2>
+        <div style="margin-bottom:15px;">
+            <button id="addCourseBtn" class="btn-success">➕ Tambah Kursus Baru</button>
+        </div>
+        <div class="course-grid">${coursesData.map(course => `<div class="course-card"><div class="course-icon">${course.icon || '📚'}</div><div class="course-title">${course.title}</div>
         <button class="edit-course-info" data-id="${course.id}" style="background:#27ae60;">Edit Info & Grup</button>
-        <button class="edit-lessons" data-id="${course.id}" style="background:#3498db;">Edit Materi</button></div>`).join('')}</div>
+        <button class="edit-lessons" data-id="${course.id}" style="background:#3498db;">Edit Materi</button>
+        <button class="delete-course-btn" data-id="${course.id}" style="background:#e74c3c; margin-top:5px;">🗑️ Hapus Kursus</button></div>`).join('')}</div>
         <button id="backBtn" class="btn-back">Kembali</button></div>`;
     document.getElementById("adminContent").innerHTML = html;
     document.getElementById("backBtn").onclick = () => renderAdminDashboard();
+    document.getElementById("addCourseBtn").onclick = () => renderAddCourseForm();
     document.querySelectorAll(".edit-course-info").forEach(btn => { btn.onclick = () => { editingCourseId = btn.getAttribute("data-id"); renderEditCourseInfo(); }; });
     document.querySelectorAll(".edit-lessons").forEach(btn => { btn.onclick = () => { editingCourseId = btn.getAttribute("data-id"); renderLessonsManager(); }; });
+    document.querySelectorAll(".delete-course-btn").forEach(btn => {
+        btn.onclick = async () => {
+            const id = parseInt(btn.getAttribute("data-id"));
+            const course = coursesData.find(c => c.id === id);
+            if (!confirm(`Hapus kursus "${course?.title}"? Tindakan ini tidak bisa dibatalkan!`)) return;
+            const { error } = await supabaseClient.from('courses').delete().eq('id', id);
+            if (error) { alert("Gagal hapus: " + error.message); return; }
+            await CacheDB.delete('courses');
+            await loadCourses(true);
+            alert("✅ Kursus berhasil dihapus!");
+            renderCourseUIEditor();
+        };
+    });
+}
+
+async function renderAddCourseForm() {
+    const maxId = Math.max(...coursesData.map(c => c.id), 0);
+    const newId = maxId + 1;
+    let html = `<div class="card">
+        <h2>➕ Tambah Kursus Baru</h2>
+        <form id="addCourseForm">
+            <div class="form-group"><label>Icon (emoji)</label><input type="text" id="newIcon" value="📚" placeholder="Contoh: 📖 🕋 🛡️" required></div>
+            <div class="form-group"><label>Judul Kursus</label><input type="text" id="newTitle" placeholder="Contoh: Fiqih Praktis" required></div>
+            <div class="form-group"><label>Deskripsi</label><textarea id="newDesc" rows="3" placeholder="Deskripsi singkat kursus..."></textarea></div>
+            <div class="form-group"><label>Harga (Rp)</label><input type="number" id="newPrice" value="200000" min="0" required></div>
+            <div class="form-group"><label>Telegram Group (opsional)</label><input type="text" id="newTelegram" placeholder="https://t.me/nama_grup"></div>
+            <div class="alert-info" style="margin:10px 0;">ℹ️ Materi kursus bisa ditambahkan setelah kursus dibuat via menu <strong>Edit Materi</strong>.</div>
+            <button type="submit" class="btn-success">💾 Simpan Kursus Baru</button>
+            <button type="button" id="backBtn" class="btn-back">Kembali</button>
+        </form>
+    </div>`;
+    document.getElementById("adminContent").innerHTML = html;
+    document.getElementById("backBtn").onclick = () => renderCourseUIEditor();
+    document.getElementById("addCourseForm").onsubmit = async (e) => {
+        e.preventDefault();
+        const btn = e.target.querySelector('button[type="submit"]');
+        btn.disabled = true; btn.textContent = "Menyimpan...";
+        const newCourse = {
+            id: newId,
+            icon: document.getElementById("newIcon").value.trim() || "📚",
+            title: document.getElementById("newTitle").value.trim(),
+            description: document.getElementById("newDesc").value.trim(),
+            price: parseInt(document.getElementById("newPrice").value) || 200000,
+            telegram_group: document.getElementById("newTelegram").value.trim(),
+            lessons: [],
+            is_active: true
+        };
+        const ok = await saveCourseToDB(newCourse);
+        if (ok) {
+            alert(`✅ Kursus "${newCourse.title}" berhasil ditambahkan!`);
+            await loadCourses(true);
+            renderCourseUIEditor();
+        } else {
+            btn.disabled = false; btn.textContent = "💾 Simpan Kursus Baru";
+        }
+    };
 }
 
 async function renderEditCourseInfo() {
