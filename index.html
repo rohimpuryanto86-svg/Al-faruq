@@ -675,7 +675,8 @@ async function purchaseCourse(courseId, price, promo = null) {
     return true;
 }
 async function purchaseBundle(promoDiscount = 0, promoCode = null) {
-    let baseBundle = getDiscountedPrice(800000);
+    const settingBundlePrice = parseInt(appSettings['bundle_price'] || 800000);
+    let baseBundle = getDiscountedPrice(settingBundlePrice);
     let bundlePrice = promoDiscount > 0 ? Math.round(baseBundle * (1 - promoDiscount / 100)) : baseBundle;
     
     if (currentUser.walletBalance < bundlePrice) {
@@ -1253,7 +1254,27 @@ async function renderStorePage() {
         <div class="card" style="text-align:center;">
             <h2>Beli Kursus dengan Wallet</h2>
             <p>Saldo Anda: <strong>${formatRupiah(currentUser.walletBalance)}</strong></p>
-            ${!currentUser.isBundle ? `<button id="buyBundleBtn" class="btn-warning" style="background:#f39c12;">Beli Bundle (${formatRupiah(getDiscountedPrice(800000))}) - Akses Semua Kursus</button>` : '<div class="alert-success">Anda sudah memiliki BUNDLE! Akses semua kursus gratis.</div>'}
+            ${(() => {
+                const bundlePrice = parseInt(appSettings['bundle_price'] || 800000);
+                const bundleCourseIds = JSON.parse(appSettings['bundle_courses'] || 'null') || coursesData.map(c => c.id);
+                const bundleCourseList = coursesData.filter(c => bundleCourseIds.includes(c.id));
+                const discountedBundlePrice = getDiscountedPrice(bundlePrice);
+                if (currentUser.isBundle) {
+                    return `<div class="alert-success">✅ Anda sudah memiliki BUNDLE! Akses semua kursus gratis.</div>`;
+                }
+                return `
+                <div style="border:2px solid #f39c12; border-radius:16px; padding:20px; background:#fffbf0; margin-bottom:10px;">
+                    <div style="font-size:1.2rem; font-weight:bold; color:#e67e22; margin-bottom:8px;">📦 Paket Bundle — Akses Semua Kursus</div>
+                    <div style="display:flex; flex-wrap:wrap; justify-content:center; gap:8px; margin-bottom:12px;">
+                        ${bundleCourseList.map(c => `<span style="background:#fff3cd; border:1px solid #f39c12; border-radius:20px; padding:4px 12px; font-size:0.85rem;">${c.icon||'📚'} ${escapeHtml(c.title)}</span>`).join('')}
+                    </div>
+                    ${bundlePrice !== discountedBundlePrice ? `<div style="color:#999; text-decoration:line-through; font-size:0.9rem;">${formatRupiah(bundlePrice)}</div>` : ''}
+                    <div style="font-size:1.4rem; font-weight:bold; color:#e67e22;">${formatRupiah(discountedBundlePrice)}</div>
+                    <button id="buyBundleBtn" class="btn-warning" data-price="${discountedBundlePrice}" style="background:#f39c12; margin-top:12px; font-size:1rem; padding:12px 28px;">
+                        🛒 Beli Bundle Sekarang
+                    </button>
+                </div>`;
+            })()}
         </div>
         
         <!-- FORM KODE PROMO -->
@@ -1374,11 +1395,12 @@ async function renderStorePage() {
         });
         
         // Update bundle price
-        const bundlePrice = getDiscountedPrice(800000);
+        const settingPrice = parseInt(appSettings['bundle_price'] || 800000);
+        const bundlePrice = getDiscountedPrice(settingPrice);
         const discountedBundlePrice = Math.round(bundlePrice * (1 - discountPercent / 100));
         const bundleBtn = document.getElementById("buyBundleBtn");
         if (bundleBtn && !currentUser.isBundle) {
-            bundleBtn.innerHTML = `Beli Bundle (${formatRupiah(discountedBundlePrice)}) - Akses Semua Kursus`;
+            bundleBtn.innerHTML = `🛒 Beli Bundle Sekarang (${formatRupiah(discountedBundlePrice)})`;
             bundleBtn.setAttribute("data-price", discountedBundlePrice);
         }
     }
@@ -1397,10 +1419,11 @@ async function renderStorePage() {
             }
         });
         
-        const bundlePrice = getDiscountedPrice(800000);
+        const settingPrice2 = parseInt(appSettings['bundle_price'] || 800000);
+        const bundlePrice = getDiscountedPrice(settingPrice2);
         const bundleBtn = document.getElementById("buyBundleBtn");
         if (bundleBtn && !currentUser.isBundle) {
-            bundleBtn.innerHTML = `Beli Bundle (${formatRupiah(bundlePrice)}) - Akses Semua Kursus`;
+            bundleBtn.innerHTML = `🛒 Beli Bundle Sekarang (${formatRupiah(bundlePrice)})`;
             bundleBtn.setAttribute("data-price", bundlePrice);
         }
     }
@@ -1622,6 +1645,61 @@ async function renderPPOBPage() {
     document.getElementById("cancelPurchaseBtn").onclick = () => { document.getElementById("purchaseFormContainer").style.display = "none"; selectedPPOBProduct = null; };
     document.querySelectorAll(".ppob-category-tab").forEach(tab => { tab.onclick = () => { document.querySelectorAll(".ppob-category-tab").forEach(t => t.classList.remove("active")); tab.classList.add("active"); loadPPOBProducts(tab.getAttribute("data-cat")); }; });
     await loadPPOBProducts("pulsa");
+}
+
+async function renderPPOBHistory() {
+    document.getElementById("appRoot").innerHTML = `
+        <div class="tabs">
+            <div class="tab" id="backToPPOB">← Kembali ke PPOB</div>
+            <div class="tab active">📋 Riwayat Transaksi PPOB</div>
+        </div>
+        <div class="card"><div class="alert-info">Memuat riwayat transaksi...</div></div>`;
+    document.getElementById("backToPPOB").onclick = () => renderPPOBPage();
+
+    const { data: txs, error } = await supabaseClient
+        .from('ppob_transactions')
+        .select('*')
+        .eq('user_id', currentUser.id)
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+    const categoryLabel = { pulsa:'📱 Pulsa', data:'📶 Paket Data', listrik:'⚡ Listrik', game:'🎮 Game', tv:'📺 TV', bpjs:'🏥 BPJS', ewallet:'💳 E-Wallet' };
+    const statusLabel = { success:'✅ Berhasil', pending:'⏳ Diproses', failed:'❌ Gagal' };
+    const statusColor = { success:'#27ae60', pending:'#f39c12', failed:'#e74c3c' };
+
+    let html = `
+        <div class="tabs">
+            <div class="tab" id="backToPPOB">← Kembali ke PPOB</div>
+            <div class="tab active">📋 Riwayat Transaksi PPOB</div>
+        </div>
+        <div class="card">
+            <h2>📋 Riwayat Transaksi PPOB</h2>`;
+
+    if (error) {
+        html += `<div class="alert-warning">Gagal memuat data: ${error.message}</div>`;
+    } else if (!txs || txs.length === 0) {
+        html += `<div class="alert-info">Belum ada transaksi PPOB.</div>`;
+    } else {
+        html += txs.map(tx => `
+            <div style="border:1px solid #eee; border-radius:12px; padding:15px; margin-bottom:12px; background:#fafafa;">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+                    <div>
+                        <div style="font-weight:bold; font-size:1rem;">${categoryLabel[tx.category] || tx.category || '-'} — ${tx.product_name || tx.product_sku || '-'}</div>
+                        <div style="color:#666; font-size:0.85rem;">Tujuan: <strong>${tx.customer_id || '-'}</strong></div>
+                        <div style="color:#888; font-size:0.8rem;">${new Date(tx.created_at).toLocaleString('id-ID')}</div>
+                        ${tx.ref_id ? `<div style="color:#aaa; font-size:0.75rem;">Ref: ${tx.ref_id}</div>` : ''}
+                    </div>
+                    <div style="text-align:right;">
+                        <div style="font-size:1.1rem; font-weight:bold; color:#1e6b3b;">${formatRupiah(tx.amount || 0)}</div>
+                        <div style="font-size:0.8rem; font-weight:bold; color:${statusColor[tx.status] || '#888'};">${statusLabel[tx.status] || tx.status || '-'}</div>
+                    </div>
+                </div>
+            </div>`).join('');
+    }
+
+    html += `</div>`;
+    document.getElementById("appRoot").innerHTML = html;
+    document.getElementById("backToPPOB").onclick = () => renderPPOBPage();
 }
 
 async function loadPPOBProducts(category) {
@@ -2915,6 +2993,7 @@ async function renderAdminDashboard() {
             <div class="tab" id="studentMgmtTab">Manajemen Peserta</div>
             <div class="tab" id="earlyBirdTab">Early Bird</div>
             <div class="tab" id="ppobMarkupTab">PPOB Markup</div>
+            <div class="tab" id="bundleSettingsTab">📦 Pengaturan Bundle</div>
             <div class="tab" id="practicalTab">Nilai Praktik</div>
             <div class="tab" id="graduatedTab">🎓 Peserta Lulus</div>
         </div>
@@ -2979,6 +3058,7 @@ async function renderAdminDashboard() {
     document.getElementById("studentMgmtTab").onclick = () => renderStudentDashboard();
     document.getElementById("earlyBirdTab").onclick = () => renderEarlyBirdSettings();
     document.getElementById("ppobMarkupTab").onclick = () => renderPPOBMarkupSettings();
+    document.getElementById("bundleSettingsTab").onclick = () => renderBundleSettings();
     document.getElementById("practicalTab").onclick = () => renderPracticalScoresAdmin();
     document.getElementById("graduatedTab").onclick = () => renderGraduatedStudents();
     
@@ -3364,6 +3444,66 @@ async function loadPracticalScoresList() {
     }
 }
 // ======================== PPOB MARKUP SETTINGS ========================
+async function renderBundleSettings() {
+    await loadAppSettings();
+    const bundlePrice = parseInt(appSettings['bundle_price'] || 800000);
+    const bundleCourses = JSON.parse(appSettings['bundle_courses'] || 'null') || coursesData.map(c => c.id);
+
+    let html = `
+    <div class="card">
+        <h2>📦 Pengaturan Bundle Kursus</h2>
+        <div class="alert-info">Bundle memberi akses ke semua kursus yang dicentang. Harga bundle bisa diatur di bawah.</div>
+
+        <form id="bundleSettingsForm">
+            <h3 style="margin:20px 0 12px;">✅ Kursus yang Termasuk Bundle</h3>
+            <div style="display:grid; gap:10px; margin-bottom:20px;">
+                ${coursesData.map(c => `
+                <label style="display:flex; align-items:center; gap:12px; padding:12px; border:1px solid #ddd; border-radius:10px; cursor:pointer; background:#fafafa;">
+                    <input type="checkbox" name="bundleCourse" value="${c.id}" ${bundleCourses.includes(c.id) ? 'checked' : ''} style="width:18px; height:18px; cursor:pointer;">
+                    <span>${c.icon || '📚'} <strong>${escapeHtml(c.title)}</strong></span>
+                    <span style="margin-left:auto; color:#888; font-size:0.85rem;">${formatRupiah(c.price)}</span>
+                </label>`).join('')}
+            </div>
+
+            <h3 style="margin:20px 0 12px;">💰 Harga Bundle</h3>
+            <div class="form-group">
+                <label>Harga Bundle (Rp)</label>
+                <input type="number" id="bundlePriceInput" value="${bundlePrice}" min="0" step="1000" style="font-size:1.1rem; font-weight:bold;">
+                <small style="color:#888;">Harga saat ini: <strong>${formatRupiah(bundlePrice)}</strong></small>
+            </div>
+
+            <button type="submit" class="btn-success" style="margin-top:10px;">💾 Simpan Pengaturan Bundle</button>
+            <button type="button" id="backBtn" class="btn-back">Kembali</button>
+        </form>
+    </div>`;
+
+    document.getElementById("adminContent").innerHTML = html;
+    document.getElementById("backBtn").onclick = () => renderAdminDashboard();
+
+    document.getElementById("bundleSettingsForm").onsubmit = async (e) => {
+        e.preventDefault();
+        const btn = e.target.querySelector('button[type="submit"]');
+        btn.disabled = true; btn.textContent = "Menyimpan...";
+        try {
+            const checked = [...document.querySelectorAll('input[name="bundleCourse"]:checked')].map(cb => parseInt(cb.value));
+            if (checked.length === 0) { alert("Pilih minimal 1 kursus untuk bundle!"); btn.disabled = false; btn.textContent = "💾 Simpan Pengaturan Bundle"; return; }
+            const newPrice = parseInt(document.getElementById("bundlePriceInput").value) || 800000;
+
+            await supabaseClient.from('app_settings').upsert({ key: 'bundle_price', value: String(newPrice) }, { onConflict: 'key' });
+            await supabaseClient.from('app_settings').upsert({ key: 'bundle_courses', value: JSON.stringify(checked) }, { onConflict: 'key' });
+            appSettings['bundle_price'] = String(newPrice);
+            appSettings['bundle_courses'] = JSON.stringify(checked);
+
+            alert(`✅ Bundle disimpan!\n${checked.length} kursus • Harga: ${formatRupiah(newPrice)}`);
+            renderBundleSettings();
+        } catch(err) {
+            alert("❌ Gagal: " + err.message);
+        } finally {
+            btn.disabled = false; btn.textContent = "💾 Simpan Pengaturan Bundle";
+        }
+    };
+}
+
 async function renderPPOBMarkupSettings() {
     let html = `<div class="card"><h2>Pengaturan Markup PPOB</h2><div class="alert-info">Atur markup (keuntungan) untuk setiap produk PPOB.</div>
         <form id="markupForm"><table class="report-table"><thead><tr><th>Kategori</th><th>Produk</th><th>Harga Dasar</th><th>Markup (Rp)</th><th>Harga Jual</th></tr></thead>
