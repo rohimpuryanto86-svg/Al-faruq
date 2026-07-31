@@ -3882,13 +3882,51 @@ async function renderLessonsManager() {
 
 async function renderAddLessonForm() {
     let course = coursesData.find(c => c.id == editingCourseId);
-    let html = `<div class="card"><h2>Tambah Materi Baru</h2><form id="addLessonForm"><div class="form-group"><label>Judul</label><input type="text" id="title" required></div>
-        <div class="form-group"><label>URL Video</label><input type="text" id="videoUrl" placeholder="https://www.youtube.com/embed/..."></div>
-        <div class="form-group"><label>Konten Teks</label><textarea id="content" rows="5"></textarea></div>
-        <div class="form-group"><label>Quiz (JSON)</label><textarea id="quiz" rows="5" placeholder='[{"q":"Soal","opt":["A","B","C","D"],"jawab":0}]'></textarea></div>
-        <button type="submit" class="btn-success">Tambah</button><button type="button" id="backBtn" class="btn-back">Kembali</button></form></div>`;
+    let html = `
+    <div style="display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap;">
+      <!-- FORM EDITOR -->
+      <div class="card" style="flex:1; min-width:280px;">
+        <h2>➕ Tambah Materi Baru</h2>
+        <form id="addLessonForm">
+          <div class="form-group"><label>Judul</label><input type="text" id="title" required placeholder="Judul materi..."></div>
+          <div class="form-group"><label>URL Video</label><input type="text" id="videoUrl" placeholder="https://youtu.be/... atau Google Drive"></div>
+          <div class="form-group"><label>Konten Teks</label><textarea id="content" rows="6" placeholder="Tulis materi di sini..."></textarea></div>
+          <div class="form-group">
+            <label>Quiz (JSON)</label>
+            <textarea id="quiz" rows="5" placeholder='[{"q":"Soal?","opt":["A","B","C","D"],"jawab":0}]'></textarea>
+            <small style="color:#888;">jawab = index jawaban benar (0=A, 1=B, dst)</small>
+          </div>
+          <button type="submit" class="btn-success">✅ Tambah Materi</button>
+          <button type="button" id="backBtn" class="btn-back">Kembali</button>
+        </form>
+      </div>
+      <!-- PREVIEW -->
+      <div class="card" style="flex:1; min-width:280px; background:#f8f9ff; border:2px dashed #3498db;">
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:15px;">
+          <span style="font-size:1.3rem;">👁️</span>
+          <strong style="color:#3498db;">Preview Tampilan User</strong>
+          <span style="font-size:0.75rem; color:#888; margin-left:auto;">Update otomatis</span>
+        </div>
+        <div id="lessonPreviewBox">
+          <div style="color:#aaa; text-align:center; padding:30px 0;">Mulai isi form untuk melihat preview...</div>
+        </div>
+      </div>
+    </div>`;
     document.getElementById("adminContent").innerHTML = html;
     document.getElementById("backBtn").onclick = () => renderLessonsManager();
+
+    // Live preview
+    function updatePreview() {
+        const title = document.getElementById("title").value;
+        const videoUrl = document.getElementById("videoUrl").value;
+        const content = document.getElementById("content").value;
+        const quizRaw = document.getElementById("quiz").value;
+        document.getElementById("lessonPreviewBox").innerHTML = buildLessonPreviewHtml(title, videoUrl, content, quizRaw);
+    }
+    ["title","videoUrl","content","quiz"].forEach(id => {
+        document.getElementById(id).addEventListener("input", updatePreview);
+    });
+
     document.getElementById("addLessonForm").onsubmit = async (e) => {
         e.preventDefault();
         let quiz = []; try { quiz = JSON.parse(document.getElementById("quiz").value || "[]"); } catch(e) { quiz = []; }
@@ -3902,13 +3940,50 @@ async function renderAddLessonForm() {
 async function renderEditLessonForm() {
     let course = coursesData.find(c => c.id == editingCourseId);
     let lesson = course.lessons[editingLessonIndex];
-    let html = `<div class="card"><h2>Edit Materi: ${lesson.title}</h2><form id="editLessonForm"><div class="form-group"><label>Judul</label><input type="text" id="title" value="${lesson.title}"></div>
-        <div class="form-group"><label>URL Video</label><input type="text" id="videoUrl" value="${lesson.videoUrl || ''}"></div>
-        <div class="form-group"><label>Konten Teks</label><textarea id="content" rows="5">${lesson.content || ''}</textarea></div>
-        <div class="form-group"><label>Quiz (JSON)</label><textarea id="quiz" rows="5">${JSON.stringify(lesson.quiz || [], null, 2)}</textarea></div>
-        <button type="submit" class="btn-success">Simpan</button><button type="button" id="backBtn" class="btn-back">Kembali</button></form></div>`;
+    let html = `
+    <div style="display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap;">
+      <!-- FORM EDITOR -->
+      <div class="card" style="flex:1; min-width:280px;">
+        <h2>✏️ Edit Materi</h2>
+        <form id="editLessonForm">
+          <div class="form-group"><label>Judul</label><input type="text" id="title" value="${escapeHtml(lesson.title)}"></div>
+          <div class="form-group"><label>URL Video</label><input type="text" id="videoUrl" value="${escapeHtml(lesson.videoUrl || '')}" placeholder="https://youtu.be/... atau Google Drive"></div>
+          <div class="form-group"><label>Konten Teks</label><textarea id="content" rows="6">${escapeHtml(lesson.content || '')}</textarea></div>
+          <div class="form-group">
+            <label>Quiz (JSON)</label>
+            <textarea id="quiz" rows="5">${escapeHtml(JSON.stringify(lesson.quiz || [], null, 2))}</textarea>
+            <small style="color:#888;">jawab = index jawaban benar (0=A, 1=B, dst)</small>
+          </div>
+          <button type="submit" class="btn-success">💾 Simpan</button>
+          <button type="button" id="backBtn" class="btn-back">Kembali</button>
+        </form>
+      </div>
+      <!-- PREVIEW -->
+      <div class="card" style="flex:1; min-width:280px; background:#f8f9ff; border:2px dashed #3498db;">
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:15px;">
+          <span style="font-size:1.3rem;">👁️</span>
+          <strong style="color:#3498db;">Preview Tampilan User</strong>
+          <span style="font-size:0.75rem; color:#888; margin-left:auto;">Update otomatis</span>
+        </div>
+        <div id="lessonPreviewBox"></div>
+      </div>
+    </div>`;
     document.getElementById("adminContent").innerHTML = html;
     document.getElementById("backBtn").onclick = () => renderLessonsManager();
+
+    // Live preview - render awal langsung
+    function updatePreview() {
+        const title = document.getElementById("title").value;
+        const videoUrl = document.getElementById("videoUrl").value;
+        const content = document.getElementById("content").value;
+        const quizRaw = document.getElementById("quiz").value;
+        document.getElementById("lessonPreviewBox").innerHTML = buildLessonPreviewHtml(title, videoUrl, content, quizRaw);
+    }
+    updatePreview(); // langsung tampil saat form dibuka
+    ["title","videoUrl","content","quiz"].forEach(id => {
+        document.getElementById(id).addEventListener("input", updatePreview);
+    });
+
     document.getElementById("editLessonForm").onsubmit = async (e) => {
         e.preventDefault();
         let quiz = []; try { quiz = JSON.parse(document.getElementById("quiz").value || "[]"); } catch(e) { quiz = []; }
@@ -3919,6 +3994,72 @@ async function renderEditLessonForm() {
         await saveCourseToDB(course);
         alert("Materi disimpan!"); renderLessonsManager();
     };
+}
+
+// ============================================================
+// Helper: Build preview HTML sesuai tampilan user
+// ============================================================
+function buildLessonPreviewHtml(title, videoUrl, content, quizRaw) {
+    let html = '';
+
+    // Badge preview
+    html += `<div style="background:#3498db; color:white; font-size:0.7rem; padding:3px 10px; border-radius:20px; display:inline-block; margin-bottom:10px;">Tampilan di halaman user</div>`;
+
+    // Judul
+    html += `<h3 style="margin:8px 0 12px;">${title ? escapeHtml(title) : '<span style="color:#ccc;">Judul materi...</span>'}</h3>`;
+
+    // Video
+    const embedUrl = getEmbedUrl(videoUrl);
+    if (embedUrl) {
+        html += `<div class="video-wrapper"><iframe src="${embedUrl}" frameborder="0" allowfullscreen></iframe></div>`;
+    }
+
+    // Konten teks
+    if (content) {
+        const isPlainText = !/<[a-z][\s\S]*>/i.test(content);
+        if (isPlainText) {
+            html += `<div class="lesson-content" style="line-height:1.8; margin:12px 0; white-space:pre-wrap;">${escapeHtml(content)}</div>`;
+        } else {
+            html += `<div class="lesson-content" style="line-height:1.8; margin:12px 0;">${content}</div>`;
+        }
+    }
+
+    // Kosong
+    if (!embedUrl && !content) {
+        html += `<div class="alert-info">📖 Materi akan segera ditambahkan oleh instruktur.</div>`;
+    }
+
+    // Quiz preview
+    let quiz = [];
+    try { quiz = JSON.parse(quizRaw || "[]"); } catch(e) {}
+    if (quiz.length > 0) {
+        html += `<hr style="margin:15px 0; border-color:#ddd;">`;
+        html += `<div style="font-weight:bold; margin-bottom:10px;">📝 Quiz (${quiz.length} soal)</div>`;
+        quiz.forEach((q, i) => {
+            html += `<div style="background:#fff; border:1px solid #e0e0e0; border-radius:10px; padding:10px 12px; margin-bottom:8px;">
+                <div style="font-weight:600; margin-bottom:6px;">${i+1}. ${escapeHtml(q.q || '')}</div>
+                <div style="display:flex; flex-direction:column; gap:4px;">
+                    ${(q.opt || []).map((o, oi) => `
+                        <div style="padding:5px 10px; border-radius:6px; font-size:0.9rem;
+                            background:${oi === q.jawab ? '#e8f8ee' : '#f5f5f5'};
+                            color:${oi === q.jawab ? '#27ae60' : '#333'};
+                            border:1px solid ${oi === q.jawab ? '#27ae60' : '#e0e0e0'};">
+                            ${oi === q.jawab ? '✅' : '○'} ${escapeHtml(o)}
+                        </div>`).join('')}
+                </div>
+            </div>`;
+        });
+        html += `<div style="font-size:0.75rem; color:#888;">* Jawaban benar ditandai ✅ (hanya tampil di preview ini, tidak ke user)</div>`;
+    }
+
+    // Tombol aksi (non-fungsional, hanya visual)
+    html += `<div style="margin-top:16px; display:flex; gap:8px; flex-wrap:wrap; opacity:0.6; pointer-events:none;">
+        <button class="btn-success" style="font-size:0.85rem;">✅ Tandai Selesai</button>
+        ${quiz.length > 0 ? '<button class="btn-primary" style="font-size:0.85rem;">📝 Kerjakan Quiz</button>' : ''}
+        <button class="btn-back" style="font-size:0.85rem;">Kembali</button>
+    </div>`;
+
+    return html;
 }
 
 async function renderSalesReport() {
