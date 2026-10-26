@@ -4,30 +4,30 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <title>ALFARUQ ONLINE COURSE - Belajar Islam Dalam Genggaman</title>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        :root {
-            --primary: #1e6b3b;
-            --primary-dark: #0b3b2f;
-            --secondary: #f4a261;
-            --secondary-dark: #e76f51;
-            --bg-body: linear-gradient(135deg, #0b3b2f, #1e6b3b);
-            --bg-card: white;
-            --text-color: #333;
-            --text-light: white;
-            --border-color: #ddd;
-            --bg-lesson: #f8f9fa;
-            --bg-lesson-hover: #e9ecef;
-            --bg-completed: #d4edda;
+    <!-- DIAGNOSTIK: tampilkan error di layar (berguna di HP). Hapus blok ini jika sudah tidak perlu. -->
+    <script>
+    (function () {
+        var logs = [], box = null;
+        function esc(s) { return String(s).replace(/[&<>]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]; }); }
+        function render() {
+            if (!document.body) { return document.addEventListener('DOMContentLoaded', render); }
+            if (!box) {
+                box = document.createElement('div');
+                box.id = 'dbgBox';
+                box.style.cssText = 'position:fixed;left:0;right:0;bottom:0;max-height:55%;overflow:auto;background:#1a1a1a;color:#ffb4b4;font:12px/1.4 monospace;padding:10px;z-index:2147483647;border-top:3px solid #e74c3c;white-space:pre-wrap;word-break:break-word;';
+                document.body.appendChild(box);
+            }
+            box.innerHTML = '<div style="color:#fff;font-weight:bold;margin-bottom:6px;">⚠️ Info kesalahan (' + logs.length + ') ' +
+                '<button onclick="navigator.clipboard&&navigator.clipboard.writeText(document.getElementById(\'dbgText\').innerText).then(function(){alert(\'Tersalin\')})" style="margin-left:8px;">Salin</button>' +
+                '<button onclick="document.getElementById(\'dbgBox\').remove()" style="margin-left:6px;">Tutup</button></div>' +
+                '<div id="dbgText">' + logs.map(esc).join('\n\n') + '</div>';
         }
-        [data-theme="dark"] {
-            --primary: #2d8f4e;
-            --primary-dark: #1a5a3a;
-            --secondary: #f4a261;
-            --secondary-dark: #e76f51;
-            --bg-body: linear-gradient(135deg, #1a1a2e, #16213e);
-            --bg-card: #2d2d3f;
+        function add(msg) {
+            if (logs.length > 25) return;
+            logs.push(new Date().toLocaleTimeString() + '  ' + msg);
+            render();
+        }
+        window.addEventListener('error', function (e) {
+            var t = e.target;
+            if (t && t !== window && (t.tagName === 'SCRIPT' || t.tagName === 'LINK')) {
+                add('GAGAL MEMUAT FILE: ' + (t.src || t.href) + '\n(jaringan/ekstensi/pemblokir iklan mungkin memblokirnya)');
